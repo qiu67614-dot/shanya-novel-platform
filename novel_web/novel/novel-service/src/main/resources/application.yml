@@ -35,12 +35,14 @@ logging:
     com.sdjz.novel.mapper: debug
 
 jwt:
-  secret: novel-jwt-secret-key-2026-very-long-secret-string
+  # 仅本地开发默认值；生产必须通过 NOVEL_JWT_SECRET 注入（application-prod.yml 已强制要求）
+  secret: ${NOVEL_JWT_SECRET:dev-only-jwt-secret-change-before-deploy}
   expire-hour: 24
 
 admin:
   jwt:
-    secret: ${NOVEL_ADMIN_JWT_SECRET:novel-admin-jwt-2026-secret-key}
+    # HS256 要求密钥 >= 32 字节，默认值不足会让 Keys.hmacShaKeyFor 抛 WeakKeyException
+    secret: ${NOVEL_ADMIN_JWT_SECRET:dev-only-admin-secret-change-before-deploy}
     expire-hour: 8
   bootstrap:
     username: ${NOVEL_ADMIN_BOOTSTRAP_USERNAME:}
