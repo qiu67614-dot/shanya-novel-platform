@@ -10,6 +10,13 @@
 *.yml text eol=lf
 *.yaml text eol=lf
 
+# systemd 单元与 MySQL 配置：CRLF 会让 unit 解析失败（ExecStart 末尾带 \r）
+*.service text eol=lf
+*.timer text eol=lf
+*.cnf text eol=lf
+*.env text eol=lf
+*.example text eol=lf
+
 # 二进制文件不做行尾转换
 *.png binary
 *.jpg binary
