@@ -18,5 +18,9 @@ public class ErrorCode {
     public static final String INVALID_PARAM = "B0004";
     /** 权限不足 */
     public static final String FORBIDDEN = "A0403";
+    /** 请求过于频繁（对应 HTTP 429） */
+    public static final String TOO_MANY_REQUESTS = "A0429";
+    /** 账号因连续登录失败被临时锁定 */
+    public static final String LOGIN_LOCKED = "A0429_LOCK";
 
 }
