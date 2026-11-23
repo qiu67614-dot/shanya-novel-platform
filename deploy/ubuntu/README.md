@@ -1,6 +1,26 @@
 # 山崖书院 Ubuntu 单机部署
 
-本目录是部署模板，不会自动创建阿里云资源。示例域名 `reader.example.com` 和 `admin.reader.example.com` 必须替换为真实域名。服务器建议阿里云香港 Ubuntu 24.04，2 vCPU、8 GB 内存、80 GB 云盘。本方案只部署 PC 读者站、管理站和 Java API，不包含 UniApp。
+本目录是部署模板，不会自动创建阿里云资源。示例域名 `reader.example.com` 和 `admin.reader.example.com` 必须替换为真实域名。
+
+**实例规格**：最低 2 vCPU / 2 GiB（如 `ecs.e-c1m1.large`），按 [`2C2G-适配清单.md`](2C2G-适配清单.md) 调整 JVM 堆、线程池、MySQL 和 swap 后才能跑；4 vCPU / 8 GiB 可以跳过该清单。系统盘 40 GiB 起，Ubuntu 24.04。本方案只部署 PC 读者站、管理站和 Java API，不包含 UniApp。
+
+## 0. 上线顺序
+
+按这个顺序做，每一步都有可验证的结果，不要跳步：
+
+- [ ] **域名解析**：`reader` 与 `admin` 两条 A 记录指向 ECS 公网 IP，`ping` 能通
+- [ ] **备案**（ECS 在中国大陆时必需）：未备案的 80/443 会被拦截，先确认状态再往下走
+- [ ] **安全组**：只开 80、443；22 限制为你的固定 IP
+- [ ] **系统初始化**：装 JDK 17 / MySQL / Redis / Nginx / certbot，建 `novel` 用户和目录，加 swap（见第 2 节与 2C2G 清单）
+- [ ] **数据库**：执行 4 个初始化 SQL，建 `novel_app` / `novel_backup` 两个受限账号（第 2 节）
+- [ ] **Java 服务**：写 `/etc/novel/novel.env`，装 systemd 单元，`curl 127.0.0.1:8080` 通（第 3 节）
+- [ ] **HTTP 站点**：先上线 HTTP 站点，浏览器能打开读者站（第 4 节）
+- [ ] **证书**：`certbot --webroot` 签两个域名，切到 HTTPS 模板，`renew --dry-run` 通过（第 4 节）
+- [ ] **限流**：装 3 个 zone + snippets，`verify-ratelimit.sh` 能看到 429（第 4.1 节）
+- [ ] **备份**：手动跑一次备份任务，在空库恢复成功后再开定时器（第 5 节）
+- [ ] **验收**：游客浏览 / 注册登录 / 导入 / 审核发布全流程走通（第 5 节）
+
+前置依赖关系：**证书要求域名解析已生效**，**HTTPS 以前不要输入真实密码**，**备份没做过恢复验证就不算有备份**。
 
 ## 1. 构建和准备
 
@@ -32,6 +52,14 @@ npm run build
 ## 2. ECS 和数据库
 
 安全组只向公网开放 TCP 80、443；TCP 22 仅允许你的固定 IP。不要开放 3306、6379、8080。服务器上安装 `openjdk-17-jre-headless`、`mysql-server`、`redis-server`、`nginx`、`apache2-utils`、`certbot`、`python3-certbot-nginx`。MySQL、Redis 均只监听 `127.0.0.1`；Redis 保持 `protected-mode yes` 并设置强密码。
+
+2 GiB 实例还要额外做两件事，否则 JVM 和 MySQL 会互相挤爆内存：按 [`2C2G-适配清单.md`](2C2G-适配清单.md) 加 2 GB swap，并安装 MySQL 调参文件：
+
+```bash
+sudo install -m 0644 mysql-2c2g.cnf /etc/mysql/mysql.conf.d/zz-novel-2c2g.cnf
+sudo systemctl restart mysql
+mysql -e "SHOW VARIABLES LIKE 'innodb_buffer_pool_size'"   # 应为 268435456
+```
 
 创建系统用户 `novel`，工作目录 `/opt/novel`，前端目录 `/var/www/novel-reader` 和 `/var/www/novel-manager`，备份目录 `/var/backups/novel`。让 `novel` 拥有工作和备份目录；Nginx 用户应能读取两个前端目录。将 JAR 放到 `/opt/novel/novel-service.jar`，两个 `dist` 的内容分别放到对应前端目录。
 
@@ -122,7 +150,7 @@ sudo bash /opt/novel/verify-ratelimit.sh https://reader.example.com
 - `limit_req_status` / `limit_conn_status` 显式设为 **429**（Nginx 默认 503，前端会误判为服务故障）；`nodelay` 让超额请求立即被拒而不是排队，避免用户感觉「网站变卡」。
 - `snippets/novel-ratelimit-429.conf` 在 **server 上下文** include，把 429 渲染成 `{code:"A0429", ...}` JSON 并带 `Retry-After: 3`。Nginx 默认返回 HTML，axios 解析不到 `message`。
 - `X-Forwarded-For` 由 `$proxy_add_x_forwarded_for` 改为 `$remote_addr` **覆盖写入**，另加 `X-Client-IP`；后端 L2 限流只信任后者，防止伪造 IP 绕过。当前后端不读取 XFF，此改动无兼容影响。
-- 导入接口单独放宽到 120s：在把 5000 次逐条 insert 改成批量之前，15s 会掐断正常导入；批量化改造完成后应收回。
+- 导入接口单独放宽到 120s：章节插入已改为分批（500 条 / 2 MB 双上限），15s 的超时已能覆盖大多数导入；但 20 MB 文本的服务端解析本身仍需数秒，暂保留 120s，等实测后按 p99 收回。
 - `nginx-ip-test.conf` 是临时 IP 联调模板，已有 `allow/deny` 白名单，本轮不加限流；正式启用站点时会移除它。
 - **本层只做按 IP 的粗限流，无法做到「按人公平」**。同一个 NAT 下每人独立计数必须靠后端 L3 的 UID 维度；登录失败锁定、导入全局并发 `Semaphore(2)`、缓存击穿防护属于 L2~L5，不在这里实现，也不在这一层假装实现。
 
@@ -130,7 +158,7 @@ sudo bash /opt/novel/verify-ratelimit.sh https://reader.example.com
 
 回滚：删除 `/etc/nginx/conf.d/nginx-ratelimit-zones.conf`，把 4 份站点模板换回上一版，`sudo nginx -t && sudo systemctl reload nginx`；不涉及数据库和 Java 服务。
 
-前端三端的 `request.js` 目前还不识别 429（会落到「网络异常」提示），这是 P0 的剩余工作；在补上之前，被限流的用户只会看到通用报错，不会自动退避。
+三端前端（`novel-front-web`、`novel-front-manger`、`novel-front-app`）的请求封装已识别 429：仅对 GET/HEAD/OPTIONS 按 `Retry-After`（上限 5 秒）退避重试一次，写操作直接提示，避免重复提交评论。因此触发限流时用户看到的是「操作过于频繁」，而不是通用网络错误。
 
 ## 5. 异地备份和验收
 

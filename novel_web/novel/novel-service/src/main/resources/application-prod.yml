@@ -1,15 +1,16 @@
 server:
   address: 127.0.0.1
   port: 8080
-  # 线程数不再用默认的 200：Hikari 只有 20 个连接，
-  # 200 个线程抢 20 个连接只会把线程全部钉在 getConnection() 上。
-  # 经验比例：线程数 ≈ 连接数 × 2~4，缓存命中的读请求不占连接。
+  # 线程数按「2 vCPU / 2 GiB + Hikari 12 连接」定：
+  #   线程数 ≈ 连接数 × 3，缓存命中的读请求不占连接，多出来的线程用于等待 IO。
+  #   2 核机器上给到 80 线程，只会让 context switch 更频繁、p99 更难看。
+  # 若换成 4C8G，可放宽到 threads.max 80、accept-count 100、max-connections 1000。
   tomcat:
     threads:
-      max: 80
-      min-spare: 10
-    accept-count: 100
-    max-connections: 1000
+      max: 40
+      min-spare: 8
+    accept-count: 60
+    max-connections: 500
     # 默认 60s 过长，慢连接（含 slowloris）会一直占着线程
     connection-timeout: 5s
   # 章节正文与列表都是 JSON，压缩对小说的长文本收益明显
@@ -25,9 +26,12 @@ spring:
     username: ${NOVEL_DB_USERNAME}
     password: ${NOVEL_DB_PASSWORD}
     hikari:
-      maximum-pool-size: 20
+      # 2 vCPU / 2 GiB 上给 12 条连接：本机 MySQL 每条连接都有服务端线程开销，
+      # 20 条以上在 2 GiB 机器上会明显挤压 MySQL 自己的 buffer pool。
+      # 换成 8 GiB 或 RDS 后可回到 20。
+      maximum-pool-size: 12
       # 固定池大小，避免运行期扩缩容带来的抖动
-      minimum-idle: 20
+      minimum-idle: 12
       # 默认 30s 太长：连接池满时线程会被钉死 30 秒，而 Nginx 只等 15 秒
       connection-timeout: 3000
       validation-timeout: 1000

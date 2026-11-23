@@ -1,0 +1,61 @@
+# MySQL 8.0 在 2 vCPU / 2 GiB 实例上的调参
+#
+# 安装位置：/etc/mysql/mysql.conf.d/zz-novel-2c2g.cnf
+# 只对 Ubuntu 24.04 自带的 MySQL 8.0.3x 有效（8.0.30 起 innodb_log_file_size
+# 已被 innodb_redo_log_capacity 取代）。改完执行：
+#   sudo systemctl restart mysql && mysqladmin -p status
+#
+# 目标：把 MySQL 常驻内存从默认的 700~900 MB 压到 400 MB 左右，
+# 否则它会和 JVM 抢内存，最先被 OOM killer 杀掉的就是 mysqld。
+
+[mysqld]
+
+# --- 内存 ---
+# 全库只有几本小说的规模，256 MB 足够缓存全部索引和热点数据。
+# 别照着 4C8G 的教程写 1G，这台机器给不起。
+innodb_buffer_pool_size = 256M
+
+# 8.0.30+ 用这个；相当于 3 个 80M 的 redo 文件，保证导入 5000 章时
+# 不会因为 redo 频繁刷盘而卡住。
+innodb_redo_log_capacity = 256M
+
+# 性能分析表默认开启，常驻约 150~200 MB，对小站毫无用处。
+# 关掉这一项是 2 GiB 机器上收益最大的单条配置。
+performance_schema = OFF
+
+# --- 连接 ---
+# 应用侧 Hikari 是 12，这里留一倍余量给备份脚本和运维登录。
+max_connections = 60
+thread_cache_size = 16
+table_open_cache = 400
+
+# --- 临时表与排序 ---
+tmp_table_size = 32M
+max_heap_table_size = 32M
+sort_buffer_size = 1M
+join_buffer_size = 1M
+
+# --- 磁盘 IO ---
+# ESSD Entry 的 IOPS 本身不高，按实际能力给，别让它误以为自己是 NVMe。
+innodb_io_capacity = 200
+innodb_io_capacity_max = 400
+innodb_flush_method = O_DIRECT
+
+# 事务安全：1 = 每次提交都刷盘。这个别为了性能改成 0，
+# 崩机会丢最近一秒的评论和发布记录。
+innodb_flush_log_at_trx_commit = 1
+
+# --- binlog ---
+# 40 GB 系统盘，保留 3 天足够做「误操作回滚」，再长就会把盘写满。
+binlog_expire_logs_seconds = 259200
+max_binlog_size = 128M
+
+# --- 慢查询 ---
+# 超过 1 秒记下来，配合压测能直接看出缺哪个索引。
+slow_query_log = ON
+long_query_time = 1
+slow_query_log_file = /var/log/mysql/slow.log
+
+# --- 关掉没人用的 X Protocol ---
+# 默认会额外监听 33060 端口并常驻几十 MB 内存。
+mysqlx = OFF

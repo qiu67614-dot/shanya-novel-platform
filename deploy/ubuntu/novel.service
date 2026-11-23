@@ -9,7 +9,12 @@ User=novel
 Group=novel
 WorkingDirectory=/opt/novel
 EnvironmentFile=/etc/novel/novel.env
-ExecStart=/usr/bin/java -Xms256m -Xmx1536m -jar /opt/novel/novel-service.jar --spring.profiles.active=prod
+# 堆大小按实例内存定，不是越大越好：
+#   2 GiB 实例（本项目默认）：-Xms256m -Xmx512m，JVM 常驻约 750 MB，
+#     给同机的 MySQL（~400 MB）和系统留出空间。堆再大，MySQL 会被 OOM killer 杀掉。
+#   8 GiB 实例：可放宽到 -Xmx2048m。
+# MaxMetaspaceSize 兜住类元数据，防止加载异常时无限膨胀。
+ExecStart=/usr/bin/java -Xms256m -Xmx512m -XX:MaxMetaspaceSize=192m -jar /opt/novel/novel-service.jar --spring.profiles.active=prod
 Restart=on-failure
 RestartSec=5
 SuccessExitStatus=143
