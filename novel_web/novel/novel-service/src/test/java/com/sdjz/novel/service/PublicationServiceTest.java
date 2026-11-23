@@ -1,8 +1,8 @@
 package com.sdjz.novel.service;
 
+import com.sdjz.novel.common.cache.CacheEvictor;
 import com.sdjz.novel.common.exception.BusinessException;
 import com.sdjz.novel.common.util.AdminJwtUtil;
-import com.sdjz.novel.common.util.JsonRedisCache;
 import com.sdjz.novel.mapper.PrivateNovelMapper;
 import com.sdjz.novel.mapper.PublicationMapper;
 import com.sdjz.novel.pojo.dto.reader.AdminDecisionDTO;
@@ -32,7 +32,7 @@ class PublicationServiceTest {
     private final OssCoverStorage coverStorage = mock(OssCoverStorage.class);
     private final PublicationService service = new PublicationService(mapper, privateMapper,
             new PrivateNovelTextParser(), mock(BCryptPasswordEncoder.class),
-            mock(AdminJwtUtil.class), mock(JsonRedisCache.class), coverStorage);
+            mock(AdminJwtUtil.class), mock(CacheEvictor.class), coverStorage);
 
     @Test
     void approvedCoverBecomesPublicBookCover() {

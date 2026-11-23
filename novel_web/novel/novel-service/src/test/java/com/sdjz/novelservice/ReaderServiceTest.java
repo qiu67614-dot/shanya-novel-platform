@@ -11,6 +11,7 @@ import com.sdjz.novel.pojo.vo.reader.BookBriefVO;
 import com.sdjz.novel.pojo.vo.reader.BookSummaryVO;
 import com.sdjz.novel.service.imp.BookServiceImpl;
 import com.sdjz.novel.service.imp.ChapterServiceImpl;
+import com.sdjz.novel.service.support.BookVisitCounter;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -18,6 +19,8 @@ import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
@@ -30,7 +33,8 @@ class ReaderServiceTest {
         when(books.selectHomeHot()).thenReturn(List.of());
         when(books.selectHomeUpdated()).thenReturn(List.of());
 
-        var home = new BookServiceImpl(books, mock(BookCategoryMapper.class), cache).getHomeBooks();
+        var home = new BookServiceImpl(books, mock(BookCategoryMapper.class), cache,
+                mock(BookVisitCounter.class)).getHomeBooks();
         assertNotNull(home.getLatest());
         assertNotNull(home.getHot());
         assertNotNull(home.getUpdated());
@@ -62,19 +66,16 @@ class ReaderServiceTest {
     }
 
     @Test
-    void cachedChapterIsUnavailableAfterBookIsTakenDown() {
-        BookBriefVO brief = new BookBriefVO();
-        brief.setId(1L);
-        ChapterContentVO cached = new ChapterContentVO();
-        cached.setBook(brief);
-        JsonRedisCache cache = mock(JsonRedisCache.class);
-        when(cache.getOrLoad(anyString(), any(), any(), any())).thenReturn(cached);
-        BookMapper books = mock(BookMapper.class);
+    void takenDownBookChapterIsNotFoundWhenLoading() {
+        ChapterMapper chapters = mock(ChapterMapper.class);
+        // selectChapterContent 的 SQL 带 book_info.status = 0，作品下架后这里就是 null
+        when(chapters.selectChapterContent(100L)).thenReturn(null);
 
         BusinessException error = assertThrows(BusinessException.class,
-                () -> new ChapterServiceImpl(mock(ChapterMapper.class), books, cache).getChapterContent(100L));
+                () -> new ChapterServiceImpl(chapters, mock(BookMapper.class), loadingCache())
+                        .getChapterContent(100L));
         assertEquals("B0003", error.getCode());
-        verify(books).selectBookById(1L);
+        verify(chapters, never()).selectPreviousChapterId(anyLong(), anyInt());
     }
 
     private JsonRedisCache loadingCache() {

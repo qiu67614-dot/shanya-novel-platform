@@ -15,4 +15,7 @@ public interface BookMapper {
     BookSummaryVO selectBookById(@Param("bookId") Long bookId);
     List<BookSummaryVO> selectRankBooks(@Param("orderBy") String orderBy);
     int increaseVisit(@Param("bookId") Long bookId);
+
+    /** 批量回写用：一次累加 delta，把 N 条 UPDATE 合并成一条 */
+    int increaseVisitBy(@Param("bookId") Long bookId, @Param("delta") long delta);
 }

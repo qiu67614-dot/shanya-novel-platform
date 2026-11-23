@@ -1,9 +1,10 @@
 package com.sdjz.novel.service;
 
+import com.sdjz.novel.common.cache.CacheEvictor;
+import com.sdjz.novel.common.cache.CacheKeys;
 import com.sdjz.novel.common.exception.BusinessException;
 import com.sdjz.novel.common.exception.ErrorCode;
 import com.sdjz.novel.common.util.AdminJwtUtil;
-import com.sdjz.novel.common.util.JsonRedisCache;
 import com.sdjz.novel.mapper.PrivateNovelMapper;
 import com.sdjz.novel.mapper.PublicationMapper;
 import com.sdjz.novel.pojo.dto.reader.AdminDecisionDTO;
@@ -31,8 +32,6 @@ import org.springframework.boot.ApplicationRunner;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.transaction.support.TransactionSynchronization;
-import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
@@ -49,7 +48,7 @@ public class PublicationService implements ApplicationRunner {
     private final PrivateNovelTextParser parser;
     private final BCryptPasswordEncoder passwordEncoder;
     private final AdminJwtUtil adminJwtUtil;
-    private final JsonRedisCache readerCache;
+    private final CacheEvictor cacheEvictor;
     private final OssCoverStorage coverStorage;
 
     @Value("${admin.bootstrap.username:}")
@@ -332,14 +331,9 @@ public class PublicationService implements ApplicationRunner {
     }
 
     private void evictPublicAfterCommit() {
-        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
-            @Override public void afterCommit() {
-                readerCache.evict("home");
-                readerCache.evict("ranks:visit");
-                readerCache.evict("ranks:update");
-                readerCache.evict("ranks:new");
-            }
-        });
+        // 统一由 CacheEvictor 处理：事务提交后才删，并在 500ms 后补删一次，
+        // 避免提交瞬间仍在执行的读请求把旧值写回缓存
+        cacheEvictor.evictAfterCommit(CacheKeys.PUBLIC_BOOK_KEYS.toArray(String[]::new));
     }
 
     private static int normalizeSize(int size) { return size < 1 ? 20 : Math.min(size, 100); }

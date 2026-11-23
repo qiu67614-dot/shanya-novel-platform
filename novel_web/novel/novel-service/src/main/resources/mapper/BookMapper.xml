@@ -108,4 +108,12 @@
         AND status = 0
     </update>
 
+    <update id="increaseVisitBy">
+        UPDATE book_info
+        SET visit_count = visit_count + #{delta},
+        update_time = NOW()
+        WHERE id = #{bookId}
+        AND status = 0
+    </update>
+
 </mapper>

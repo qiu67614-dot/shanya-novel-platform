@@ -1,6 +1,7 @@
 package com.sdjz.novel.service.imp;
 
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.sdjz.novel.common.cache.CacheKeys;
 import com.sdjz.novel.common.exception.BusinessException;
 import com.sdjz.novel.common.exception.ErrorCode;
 import com.sdjz.novel.common.util.JsonRedisCache;
@@ -54,7 +55,7 @@ public class ChapterServiceImpl implements ChapterService {
         // 缓存命中时直接返回，不再补一次 selectBookById：
         // selectChapterContent 的 SQL 已 JOIN book_info 并带 status = 0 过滤，
         // 书籍下线或删除时缓存随 TTL（5 分钟）失效即可，无需每次读都多打一次库。
-        ChapterContentVO content = readerCache.getOrLoad("chapter:" + chapterId, CHAPTER_TYPE, CHAPTER_TTL,
+        ChapterContentVO content = readerCache.getOrLoad(CacheKeys.chapter(chapterId), CHAPTER_TYPE, CHAPTER_TTL,
                 () -> loadChapterContent(chapterId));
         if (content == null || content.getBook() == null) {
             throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "章节不存在");

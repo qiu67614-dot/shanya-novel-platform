@@ -1,6 +1,7 @@
 package com.sdjz.novel.service.imp;
 
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.sdjz.novel.common.cache.CacheKeys;
 import com.sdjz.novel.common.exception.BusinessException;
 import com.sdjz.novel.common.exception.ErrorCode;
 import com.sdjz.novel.common.util.JsonRedisCache;
@@ -12,6 +13,7 @@ import com.sdjz.novel.pojo.vo.reader.CategoryVO;
 import com.sdjz.novel.pojo.vo.reader.HomeBooksVO;
 import com.sdjz.novel.pojo.vo.reader.PageVO;
 import com.sdjz.novel.service.BookService;
+import com.sdjz.novel.service.support.BookVisitCounter;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 
@@ -32,10 +34,11 @@ public class BookServiceImpl implements BookService {
     private final BookMapper bookMapper;
     private final BookCategoryMapper bookCategoryMapper;
     private final JsonRedisCache readerCache;
+    private final BookVisitCounter visitCounter;
 
     @Override
     public HomeBooksVO getHomeBooks() {
-        return readerCache.getOrLoad("home", HOME_TYPE, HOME_TTL, () -> {
+        return readerCache.getOrLoad(CacheKeys.HOME, HOME_TYPE, HOME_TTL, () -> {
             HomeBooksVO homeBooksVO = new HomeBooksVO();
             homeBooksVO.setLatest(bookMapper.selectHomeLatest());
             homeBooksVO.setHot(bookMapper.selectHomeHot());
@@ -49,8 +52,7 @@ public class BookServiceImpl implements BookService {
         if (direction != null && direction != 0 && direction != 1) {
             return bookCategoryMapper.selectEnabledCategories(direction);
         }
-        String key = direction == null ? "categories:all" : "categories:" + direction;
-        return readerCache.getOrLoad(key, CATEGORY_LIST_TYPE, CATEGORY_TTL,
+        return readerCache.getOrLoad(CacheKeys.categories(direction), CATEGORY_LIST_TYPE, CATEGORY_TTL,
                 () -> bookCategoryMapper.selectEnabledCategories(direction));
     }
 
@@ -86,7 +88,7 @@ public class BookServiceImpl implements BookService {
             case "new" -> "create_time DESC";
             default -> throw new BusinessException(ErrorCode.INVALID_PARAM, "榜单类型不合法");
         };
-        return readerCache.getOrLoad("ranks:" + type, BOOK_LIST_TYPE, RANK_TTL,
+        return readerCache.getOrLoad(CacheKeys.ranks(type), BOOK_LIST_TYPE, RANK_TTL,
                 () -> bookMapper.selectRankBooks(orderBy));
     }
 
@@ -101,9 +103,9 @@ public class BookServiceImpl implements BookService {
 
     @Override
     public void increaseVisit(Long bookId) {
-        int rows = bookMapper.increaseVisit(bookId);
-        if (rows == 0) {
-            throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "作品不存在");
-        }
+        // 只写 Redis 缓冲，由 BookVisitCounter 每 10 秒合并回写数据库。
+        // 因此这里不再有「作品不存在」的即时校验：这个接口是埋点式的计数上报，
+        // 作品是否可读由详情接口保证，回写时 WHERE status = 0 会过滤掉已下架的作品。
+        visitCounter.record(bookId);
     }
 }

@@ -8,6 +8,7 @@ import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
 @Component
@@ -26,6 +27,16 @@ public class RedisUtil {
             "local v = redis.call('INCRBY', KEYS[1], ARGV[2]) "
                     + "if v == tonumber(ARGV[2]) then redis.call('EXPIRE', KEYS[1], ARGV[1]) end "
                     + "return v",
+            Long.class);
+
+    /**
+     * 「比对持有者再删除」必须原子。
+     *
+     * <p>如果拆成 GET + DEL：A 的锁在 TTL 到期后自动释放，B 抢到了同一把锁，
+     * 此时 A 的 DEL 会把 B 的锁删掉——锁形同虚设，两个实例同时回源。
+     */
+    private static final RedisScript<Long> DELETE_IF_MATCH = new DefaultRedisScript<>(
+            "if redis.call('GET', KEYS[1]) == ARGV[1] then return redis.call('DEL', KEYS[1]) else return 0 end",
             Long.class);
 
     public void set(String key,String value,long timeout, TimeUnit unit){
@@ -76,6 +87,26 @@ public class RedisUtil {
     /** 执行 Lua 脚本。限流令牌桶依赖它保证「读→算→写」整段原子。 */
     public <T> T execute(RedisScript<T> script, List<String> keys, Object... args) {
         return redisTemplate.execute(script, keys, args);
+    }
+
+    /** 只有当 key 的当前值等于 expectedValue 时才删除，返回是否删除成功。 */
+    public boolean deleteIfMatch(String key, String expectedValue) {
+        Long deleted = redisTemplate.execute(DELETE_IF_MATCH, List.of(key), expectedValue);
+        return deleted != null && deleted > 0;
+    }
+
+    /** 集合成员读取，用于「待回写队列」这类轻量集合。 */
+    public Set<String> members(String key) {
+        Set<String> values = redisTemplate.opsForSet().members(key);
+        return values == null ? Set.of() : values;
+    }
+
+    /** 批量出队（按业务 id 删除集合成员），配合 Lua 保证不会漏删或重删。 */
+    public void removeFromSet(String key, String... values) {
+        if (values.length == 0) {
+            return;
+        }
+        redisTemplate.opsForSet().remove(key, (Object[]) values);
     }
 }
 
