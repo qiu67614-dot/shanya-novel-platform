@@ -1,0 +1,2083 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "小说阅读端 API",
+    "version": "1.1.0",
+    "description": "字段以 reader-database.mysql.sql 和现有后端 Java POJO 为准。数据库使用下划线字段，HTTP JSON 使用 POJO camelCase；前端适配层兼容后端历史命名。公开阅读、评论、认证、书架、历史、进度和关注接口已实现。评论只支持主评论和一级回复。"
+  },
+  "servers": [
+    {
+      "url": "/api",
+      "description": "前端开发代理地址，浏览器请求示例：/api/front/books/home"
+    },
+    {
+      "url": "http://localhost:8080",
+      "description": "本地后端直连地址"
+    }
+  ],
+  "tags": [
+    {
+      "name": "公开阅读",
+      "description": "游客可访问的找书和阅读接口"
+    },
+    {
+      "name": "认证",
+      "description": "验证码、注册、登录和退出"
+    },
+    {
+      "name": "我的",
+      "description": "正式用户资料、书架、历史和进度"
+    }
+  ],
+  "paths": {
+    "/front/books/home": {
+      "get": {
+        "tags": [
+          "公开阅读"
+        ],
+        "summary": "首页书籍分组",
+        "operationId": "getFrontBooksHome",
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HomeBooksResponse"
+                },
+                "example": {
+                  "code": "00000",
+                  "data": {
+                    "latest": [],
+                    "hot": [],
+                    "updated": []
+                  },
+                  "message": "成功"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented-in-current-backend"
+      }
+    },
+    "/front/categories": {
+      "get": {
+        "tags": [
+          "公开阅读"
+        ],
+        "summary": "分类列表",
+        "operationId": "getFrontCategories",
+        "parameters": [
+          {
+            "name": "direction",
+            "in": "query",
+            "required": false,
+            "description": "0 男生分类，1 女生分类",
+            "schema": {
+              "type": "integer",
+              "enum": [
+                0,
+                1
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategoryListResponse"
+                },
+                "example": {
+                  "code": "00000",
+                  "data": [
+                    {
+                      "id": 1,
+                      "categoryName": "玄幻",
+                      "direction": 0,
+                      "sort": 10,
+                      "status": 0
+                    }
+                  ],
+                  "message": "成功"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented-in-current-backend"
+      }
+    },
+    "/front/books": {
+      "get": {
+        "tags": [
+          "公开阅读"
+        ],
+        "summary": "搜索和筛选书籍",
+        "operationId": "listFrontBooks",
+        "parameters": [
+          {
+            "name": "q",
+            "in": "query",
+            "required": false,
+            "description": "书名或作者关键字",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "categoryId",
+            "in": "query",
+            "required": false,
+            "description": "分类 ID",
+            "schema": {
+              "type": "integer",
+              "format": "int64"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "description": "0 连载中，1 已完结",
+            "schema": {
+              "type": "integer",
+              "enum": [
+                0,
+                1
+              ]
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "description": "排序方式",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "visit",
+                "update",
+                "new"
+              ],
+              "default": "update"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/Page"
+          },
+          {
+            "$ref": "#/components/parameters/Size"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookPageResponse"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented-in-current-backend"
+      }
+    },
+    "/front/ranks/{type}": {
+      "get": {
+        "tags": [
+          "公开阅读"
+        ],
+        "summary": "榜单",
+        "operationId": "getFrontRank",
+        "parameters": [
+          {
+            "name": "type",
+            "in": "path",
+            "required": true,
+            "description": "visit 阅读榜，update 更新榜，new 新书榜",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "visit",
+                "update",
+                "new"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookListResponse"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented-in-current-backend"
+      }
+    },
+    "/front/books/{bookId}": {
+      "get": {
+        "tags": [
+          "公开阅读"
+        ],
+        "summary": "书籍详情",
+        "operationId": "getFrontBook",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/BookId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookResponse"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented-in-current-backend"
+      }
+    },
+    "/front/books/{bookId}/comments": {
+      "get": {
+        "tags": [
+          "公开阅读"
+        ],
+        "summary": "获取作品主评论",
+        "description": "游客可访问。软删除后的主评论保留为评论已删除占位。",
+        "operationId": "listFrontBookComments",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/BookId"
+          },
+          {
+            "$ref": "#/components/parameters/Page"
+          },
+          {
+            "$ref": "#/components/parameters/Size"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommentPageResponse"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented-in-current-backend"
+      }
+    },
+    "/front/books/{bookId}/comments/{commentId}/replies": {
+      "get": {
+        "tags": [
+          "公开阅读"
+        ],
+        "summary": "获取评论回复",
+        "description": "游客可访问。只返回指定主评论下的一级回复。",
+        "operationId": "listFrontCommentReplies",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/BookId"
+          },
+          {
+            "$ref": "#/components/parameters/CommentId"
+          },
+          {
+            "$ref": "#/components/parameters/Page"
+          },
+          {
+            "$ref": "#/components/parameters/Size"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CommentPageResponse"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented-in-current-backend"
+      }
+    },
+    "/front/books/{bookId}/chapters": {
+      "get": {
+        "tags": [
+          "公开阅读"
+        ],
+        "summary": "章节目录",
+        "operationId": "listFrontBookChapters",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/BookId"
+          },
+          {
+            "$ref": "#/components/parameters/Page"
+          },
+          {
+            "$ref": "#/components/parameters/Size"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChapterPageResponse"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented-in-current-backend"
+      }
+    },
+    "/front/chapters/{chapterId}": {
+      "get": {
+        "tags": [
+          "公开阅读"
+        ],
+        "summary": "章节正文",
+        "description": "契约已设计，当前后端源码未提供对应 Controller。 所有章节均按免费章节处理，不返回 VIP、订阅或充值状态。",
+        "operationId": "getFrontChapter",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/ChapterId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChapterContentResponse"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented-in-current-backend"
+      }
+    },
+    "/front/books/{bookId}/visit": {
+      "post": {
+        "tags": [
+          "公开阅读"
+        ],
+        "summary": "增加点击量",
+        "description": "契约已设计，当前后端源码未提供对应 Controller。 游客可调用。",
+        "operationId": "visitFrontBook",
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/BookId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmptyResponse"
+                },
+                "example": {
+                  "code": "00000",
+                  "data": null,
+                  "message": "成功"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented-in-current-backend"
+      }
+    },
+    "/front/auth/captcha": {
+      "get": {
+        "tags": [
+          "认证"
+        ],
+        "summary": "获取验证码",
+        "operationId": "getFrontAuthCaptcha",
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CaptchaResponse"
+                },
+                "example": {
+                  "code": "00000",
+                  "data": {
+                    "img": "iVBORw0KGgo...",
+                    "sessionId": "captcha-session-id",
+                    "captchaKey": "captcha-session-id",
+                    "image": "data:image/png;base64,..."
+                  },
+                  "message": "成功"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented-in-current-backend"
+      }
+    },
+    "/front/auth/register": {
+      "post": {
+        "tags": [
+          "认证"
+        ],
+        "summary": "注册并自动登录",
+        "operationId": "frontAuthRegister",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RegisterRequest"
+              },
+              "example": {
+                "username": "13800138000",
+                "password": "******",
+                "captchaKey": "captcha-session-id",
+                "captchaCode": "1234"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthResponseWrapper"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented-in-current-backend"
+      }
+    },
+    "/front/auth/login": {
+      "post": {
+        "tags": [
+          "认证"
+        ],
+        "summary": "登录",
+        "operationId": "frontAuthLogin",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              },
+              "example": {
+                "username": "13800138000",
+                "password": "******"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthResponseWrapper"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented-in-current-backend"
+      }
+    },
+    "/front/me/bookshelf": {
+      "get": {
+        "tags": [
+          "我的"
+        ],
+        "summary": "获取书架",
+        "operationId": "getFrontMeBookshelf",
+        "security": [
+          {
+            "JwtAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BookshelfListResponse"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented-in-current-backend"
+      }
+    },
+    "/front/me/bookshelf/{bookId}": {
+      "put": {
+        "tags": [
+          "我的"
+        ],
+        "summary": "加入书架或更新书架进度",
+        "description": "契约已设计，当前后端源码未提供对应 Controller。 重复加入同一本书时更新原书架条目，不产生重复项。",
+        "operationId": "updateFrontMeBookshelf",
+        "security": [
+          {
+            "JwtAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/BookId"
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BookshelfUpdateRequest"
+              },
+              "example": {
+                "chapterId": 100
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmptyResponse"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented-in-current-backend"
+      },
+      "delete": {
+        "tags": [
+          "我的"
+        ],
+        "summary": "移出书架",
+        "operationId": "deleteFrontMeBookshelf",
+        "security": [
+          {
+            "JwtAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/BookId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmptyResponse"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented-in-current-backend"
+      }
+    },
+    "/front/me/history": {
+      "get": {
+        "tags": [
+          "我的"
+        ],
+        "summary": "获取阅读历史",
+        "description": "阅读历史按用户和作品保存一条最新记录，重复阅读同一本书时更新章节和时间，不产生重复历史项。",
+        "operationId": "getFrontMeHistory",
+        "security": [
+          {
+            "JwtAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/Page"
+          },
+          {
+            "$ref": "#/components/parameters/Size"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HistoryPageResponse"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented-in-current-backend"
+      }
+    },
+    "/front/me/progress": {
+      "put": {
+        "tags": [
+          "我的"
+        ],
+        "summary": "更新阅读进度",
+        "description": "正式用户调用。服务端同时写入或更新阅读历史；游客不会产生服务端历史。",
+        "operationId": "updateFrontMeProgress",
+        "security": [
+          {
+            "JwtAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ProgressUpdateRequest"
+              },
+              "example": {
+                "bookId": 1,
+                "chapterId": 100
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmptyResponse"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented-in-current-backend"
+      }
+    },
+    "/front/me/following": {
+      "get": {
+        "tags": [
+          "我的"
+        ],
+        "summary": "获取关注作品",
+        "description": "返回当前用户关注的上架作品；hasUpdate 表示作品最新章节是否超过用户上次确认提醒的章节。",
+        "operationId": "getFrontMeFollowing",
+        "security": [
+          {
+            "JwtAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FollowingListResponse"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented-in-current-backend"
+      }
+    },
+    "/front/me/following/{bookId}": {
+      "put": {
+        "tags": [
+          "我的"
+        ],
+        "summary": "关注作品",
+        "description": "首次关注时以作品当前最新章节作为已确认章节；重复关注不会重置提醒状态。",
+        "operationId": "followFrontMeBook",
+        "security": [
+          {
+            "JwtAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/BookId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FollowingResponse"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented-in-current-backend"
+      },
+      "delete": {
+        "tags": [
+          "我的"
+        ],
+        "summary": "取消关注作品",
+        "operationId": "unfollowFrontMeBook",
+        "security": [
+          {
+            "JwtAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/BookId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmptyResponse"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented-in-current-backend"
+      }
+    },
+    "/front/me/following/{bookId}/read": {
+      "put": {
+        "tags": [
+          "我的"
+        ],
+        "summary": "确认关注作品更新",
+        "description": "将当前作品最新章节记录为已确认，后续新章节会再次产生 hasUpdate=true。",
+        "operationId": "markFrontMeFollowingRead",
+        "security": [
+          {
+            "JwtAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/BookId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FollowingResponse"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented-in-current-backend"
+      }
+    },
+    "/front/me/books/{bookId}/comments": {
+      "post": {
+        "tags": [
+          "我的"
+        ],
+        "summary": "发表评论或回复",
+        "description": "需要登录。不传 parentCommentId 发表主评论，传入同一作品下的主评论 ID 时发表一级回复。",
+        "operationId": "createFrontMeBookComment",
+        "security": [
+          {
+            "JwtAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/BookId"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CommentCreateRequest"
+              },
+              "example": {
+                "content": "我也很喜欢这一章",
+                "parentCommentId": 12
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmptyResponse"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented-in-current-backend"
+      }
+    },
+    "/front/me/comments/{commentId}": {
+      "delete": {
+        "tags": [
+          "我的"
+        ],
+        "summary": "删除自己的评论",
+        "description": "需要登录。只能删除当前用户自己的正常评论，采用软删除。",
+        "operationId": "deleteFrontMeComment",
+        "security": [
+          {
+            "JwtAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "$ref": "#/components/parameters/CommentId"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmptyResponse"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented-in-current-backend"
+      }
+    },
+    "/front/me/me": {
+      "get": {
+        "tags": [
+          "我的"
+        ],
+        "summary": "获取个人资料（当前后端路径）",
+        "operationId": "getFrontMeProfile",
+        "security": [
+          {
+            "JwtAuth": []
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserProfileResponse"
+                }
+              }
+            }
+          }
+        },
+        "description": "当前后端已实现。返回 UserInfoVO，前端兼容 userPhotp/email 并转换为 userPhoto/userEmail。",
+        "x-implementation-status": "implemented-in-current-backend"
+      },
+      "put": {
+        "tags": [
+          "我的"
+        ],
+        "summary": "更新个人资料",
+        "operationId": "updateFrontMeProfile",
+        "security": [
+          {
+            "JwtAuth": []
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserProfileUpdateRequest"
+              },
+              "example": {
+                "nickName": "新昵称",
+                "userPhoto": "/avatar/1.jpg",
+                "userSex": 0,
+                "userBirthday": "2000-01-01",
+                "userPhone": "13800138000",
+                "userEmail": "reader@example.com"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "成功",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserProfileResponse"
+                }
+              }
+            }
+          }
+        },
+        "x-implementation-status": "implemented-in-current-backend"
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "JwtAuth": {
+        "type": "apiKey",
+        "in": "header",
+        "name": "Authorization",
+        "description": "JWT token，前端直接发送 token 字符串"
+      }
+    },
+    "parameters": {
+      "Page": {
+        "name": "page",
+        "in": "query",
+        "required": false,
+        "description": "页码，从 1 开始",
+        "schema": {
+          "type": "integer",
+          "default": 1,
+          "minimum": 1
+        }
+      },
+      "Size": {
+        "name": "size",
+        "in": "query",
+        "required": false,
+        "description": "每页数量",
+        "schema": {
+          "type": "integer",
+          "default": 20,
+          "minimum": 1
+        }
+      },
+      "BookId": {
+        "name": "bookId",
+        "in": "path",
+        "required": true,
+        "description": "书籍 ID",
+        "schema": {
+          "type": "integer",
+          "format": "int64",
+          "example": 1
+        }
+      },
+      "ChapterId": {
+        "name": "chapterId",
+        "in": "path",
+        "required": true,
+        "description": "章节 ID",
+        "schema": {
+          "type": "integer",
+          "format": "int64",
+          "example": 100
+        }
+      },
+      "CommentId": {
+        "name": "commentId",
+        "in": "path",
+        "required": true,
+        "description": "评论 ID",
+        "schema": {
+          "type": "integer",
+          "format": "int64",
+          "example": 12
+        }
+      }
+    },
+    "schemas": {
+      "EmptyResponse": {
+        "type": "object",
+        "required": [
+          "code",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "example": "00000"
+          },
+          "data": {
+            "nullable": true,
+            "example": null
+          },
+          "message": {
+            "type": "string",
+            "example": "成功"
+          }
+        }
+      },
+      "Comment": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "example": 12
+          },
+          "userId": {
+            "type": "integer",
+            "format": "int64",
+            "example": 1
+          },
+          "parentCommentId": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true,
+            "example": null
+          },
+          "nickName": {
+            "type": "string",
+            "example": "书友"
+          },
+          "userPhoto": {
+            "type": "string",
+            "nullable": true,
+            "example": null
+          },
+          "replyToNickName": {
+            "type": "string",
+            "nullable": true,
+            "example": null
+          },
+          "content": {
+            "type": "string",
+            "example": "这一章很精彩"
+          },
+          "replyCount": {
+            "type": "integer",
+            "example": 2
+          },
+          "deleted": {
+            "type": "boolean",
+            "example": false
+          },
+          "createTime": {
+            "type": "string",
+            "example": "2026-10-15 20:00:00"
+          },
+          "updateTime": {
+            "type": "string",
+            "example": "2026-10-15 20:00:00"
+          }
+        }
+      },
+      "CommentCreateRequest": {
+        "type": "object",
+        "required": [
+          "content"
+        ],
+        "properties": {
+          "content": {
+            "type": "string",
+            "maxLength": 500,
+            "minLength": 1,
+            "example": "我也很喜欢这一章"
+          },
+          "parentCommentId": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true,
+            "example": 12
+          }
+        }
+      },
+      "CommentPage": {
+        "type": "object",
+        "properties": {
+          "list": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Comment"
+            }
+          },
+          "page": {
+            "type": "integer",
+            "example": 1
+          },
+          "size": {
+            "type": "integer",
+            "example": 20
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64",
+            "example": 1
+          }
+        }
+      },
+      "Category": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "example": 1
+          },
+          "direction": {
+            "type": "integer",
+            "enum": [
+              0,
+              1
+            ],
+            "example": 0
+          },
+          "categoryName": {
+            "type": "string",
+            "example": "玄幻"
+          },
+          "sort": {
+            "type": "integer",
+            "example": 10
+          },
+          "status": {
+            "type": "integer",
+            "example": 0
+          },
+          "createTime": {
+            "type": "string",
+            "example": "2026-09-01 12:00:00"
+          },
+          "updateTime": {
+            "type": "string",
+            "example": "2026-09-01 12:00:00"
+          }
+        }
+      },
+      "BookSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "example": 1
+          },
+          "bookName": {
+            "type": "string",
+            "example": "示例小说"
+          },
+          "authorName": {
+            "type": "string",
+            "example": "作者"
+          },
+          "categoryName": {
+            "type": "string",
+            "example": "玄幻"
+          },
+          "picUrl": {
+            "type": "string",
+            "example": "/cover/1.jpg"
+          },
+          "bookStatus": {
+            "type": "integer",
+            "description": "0 连载中，1 已完结",
+            "enum": [
+              0,
+              1
+            ],
+            "example": 0
+          },
+          "wordCount": {
+            "type": "integer",
+            "format": "int64",
+            "example": 120000
+          },
+          "visitCount": {
+            "type": "integer",
+            "format": "int64",
+            "example": 3200
+          },
+          "firstChapterId": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true,
+            "example": 1
+          },
+          "lastChapterId": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true,
+            "example": 100
+          },
+          "lastChapterName": {
+            "type": "string",
+            "example": "第一百章"
+          },
+          "lastChapterUpdateTime": {
+            "type": "string",
+            "example": "2026-09-19 20:00:00"
+          },
+          "bookDesc": {
+            "type": "string",
+            "example": "作品简介"
+          },
+          "categoryId": {
+            "type": "integer",
+            "format": "int64",
+            "example": 1
+          },
+          "chapterCount": {
+            "type": "integer",
+            "format": "int32",
+            "example": 100
+          },
+          "status": {
+            "type": "integer",
+            "description": "0 上架，1 下架",
+            "enum": [
+              0,
+              1
+            ],
+            "example": 0
+          },
+          "createTime": {
+            "type": "string",
+            "example": "2026-09-01 12:00:00"
+          },
+          "updateTime": {
+            "type": "string",
+            "example": "2026-09-19 20:00:00"
+          }
+        }
+      },
+      "BookBrief": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "example": 1
+          },
+          "bookName": {
+            "type": "string",
+            "example": "示例小说"
+          },
+          "authorName": {
+            "type": "string",
+            "example": "作者"
+          },
+          "picUrl": {
+            "type": "string",
+            "nullable": true,
+            "example": "/cover/1.jpg"
+          }
+        }
+      },
+      "ChapterSummary": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "example": 100
+          },
+          "bookId": {
+            "type": "integer",
+            "format": "int64",
+            "example": 1
+          },
+          "chapterNum": {
+            "type": "integer",
+            "example": 100
+          },
+          "chapterName": {
+            "type": "string",
+            "example": "第一百章"
+          },
+          "wordCount": {
+            "type": "integer",
+            "example": 3200
+          },
+          "updateTime": {
+            "type": "string",
+            "example": "2026-09-19 20:00:00"
+          },
+          "createTime": {
+            "type": "string",
+            "example": "2026-09-19 20:00:00"
+          }
+        }
+      },
+      "ChapterContent": {
+        "type": "object",
+        "properties": {
+          "book": {
+            "$ref": "#/components/schemas/BookBrief"
+          },
+          "chapter": {
+            "$ref": "#/components/schemas/ChapterSummary"
+          },
+          "content": {
+            "type": "string",
+            "example": "章节正文"
+          },
+          "previousChapterId": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true,
+            "example": 99
+          },
+          "nextChapterId": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true,
+            "example": 101
+          }
+        }
+      },
+      "User": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "example": 1
+          },
+          "username": {
+            "type": "string",
+            "example": "13800138000"
+          },
+          "nickName": {
+            "type": "string",
+            "example": "书友"
+          },
+          "userPhoto": {
+            "type": "string",
+            "nullable": true,
+            "example": null
+          },
+          "userSex": {
+            "type": "integer",
+            "nullable": true,
+            "enum": [
+              0,
+              1,
+              2
+            ],
+            "example": 0
+          },
+          "userBirthday": {
+            "type": "string",
+            "nullable": true,
+            "example": null
+          },
+          "userPhone": {
+            "type": "string",
+            "nullable": true,
+            "example": null
+          },
+          "userEmail": {
+            "type": "string",
+            "nullable": true,
+            "example": null
+          },
+          "status": {
+            "type": "integer",
+            "example": 0
+          },
+          "createTime": {
+            "type": "string",
+            "example": "2026-09-21 10:00:00"
+          },
+          "updateTime": {
+            "type": "string",
+            "example": "2026-09-21 10:00:00"
+          }
+        },
+        "description": "标准用户模型。现有后端 UserInfoVO 可能返回 userPhotp/email，前端适配后使用 userPhoto/userEmail。"
+      },
+      "Captcha": {
+        "type": "object",
+        "properties": {
+          "captchaKey": {
+            "type": "string",
+            "example": "captcha-session-id"
+          },
+          "image": {
+            "type": "string",
+            "example": "data:image/png;base64,..."
+          },
+          "img": {
+            "type": "string",
+            "description": "不带 data:image/png;base64, 前缀的 base64 图片",
+            "example": "iVBORw0KGgo..."
+          },
+          "sessionId": {
+            "type": "string",
+            "example": "captcha-session-id"
+          }
+        }
+      },
+      "RegisterRequest": {
+        "type": "object",
+        "required": [
+          "username",
+          "password",
+          "captchaKey",
+          "captchaCode"
+        ],
+        "properties": {
+          "username": {
+            "type": "string",
+            "example": "13800138000"
+          },
+          "password": {
+            "type": "string",
+            "format": "password",
+            "example": "******"
+          },
+          "captchaKey": {
+            "type": "string",
+            "example": "captcha-session-id"
+          },
+          "captchaCode": {
+            "type": "string",
+            "example": "1234"
+          }
+        }
+      },
+      "LoginRequest": {
+        "type": "object",
+        "required": [
+          "username",
+          "password"
+        ],
+        "properties": {
+          "username": {
+            "type": "string",
+            "example": "13800138000"
+          },
+          "password": {
+            "type": "string",
+            "format": "password",
+            "example": "******"
+          }
+        }
+      },
+      "AuthData": {
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "example": "jwt-token"
+          },
+          "user": {
+            "$ref": "#/components/schemas/UserLoginSummary"
+          },
+          "uid": {
+            "type": "integer",
+            "format": "int64",
+            "example": 1
+          },
+          "nickName": {
+            "type": "string",
+            "example": "书友"
+          }
+        }
+      },
+      "UserProfileUpdateRequest": {
+        "type": "object",
+        "properties": {
+          "nickName": {
+            "type": "string",
+            "example": "新昵称"
+          },
+          "userPhoto": {
+            "type": "string",
+            "nullable": true,
+            "example": "/avatar/1.jpg"
+          },
+          "userSex": {
+            "type": "integer",
+            "enum": [
+              0,
+              1,
+              2
+            ],
+            "example": 0
+          },
+          "userBirthday": {
+            "type": "string",
+            "nullable": true,
+            "example": "2000-01-01"
+          },
+          "userPhone": {
+            "type": "string",
+            "nullable": true,
+            "example": "13800138000"
+          },
+          "userEmail": {
+            "type": "string",
+            "nullable": true,
+            "example": "reader@example.com"
+          }
+        }
+      },
+      "BookshelfUpdateRequest": {
+        "type": "object",
+        "properties": {
+          "chapterId": {
+            "type": "integer",
+            "format": "int64",
+            "example": 100
+          }
+        }
+      },
+      "ProgressUpdateRequest": {
+        "type": "object",
+        "required": [
+          "bookId",
+          "chapterId"
+        ],
+        "properties": {
+          "bookId": {
+            "type": "integer",
+            "format": "int64",
+            "example": 1
+          },
+          "chapterId": {
+            "type": "integer",
+            "format": "int64",
+            "example": 100
+          }
+        }
+      },
+      "BookshelfItem": {
+        "type": "object",
+        "properties": {
+          "book": {
+            "$ref": "#/components/schemas/BookBrief"
+          },
+          "lastChapterId": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true,
+            "example": 100
+          },
+          "lastChapterName": {
+            "type": "string",
+            "nullable": true,
+            "example": "第一百章"
+          },
+          "lastReadAt": {
+            "type": "string",
+            "nullable": true,
+            "example": "2026-09-19 20:00:00"
+          },
+          "createTime": {
+            "type": "string",
+            "nullable": true,
+            "example": "2026-09-01 12:00:00"
+          },
+          "updateTime": {
+            "type": "string",
+            "nullable": true,
+            "example": "2026-09-19 20:00:00"
+          }
+        }
+      },
+      "HistoryItem": {
+        "type": "object",
+        "properties": {
+          "book": {
+            "$ref": "#/components/schemas/BookBrief"
+          },
+          "chapterId": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true,
+            "example": 100
+          },
+          "chapterName": {
+            "type": "string",
+            "nullable": true,
+            "example": "第一百章"
+          },
+          "readAt": {
+            "type": "string",
+            "nullable": true,
+            "example": "2026-09-19 20:00:00"
+          },
+          "createTime": {
+            "type": "string",
+            "nullable": true,
+            "example": "2026-09-01 12:00:00"
+          },
+          "updateTime": {
+            "type": "string",
+            "nullable": true,
+            "example": "2026-09-19 20:00:00"
+          }
+        }
+      },
+      "FollowingItem": {
+        "type": "object",
+        "properties": {
+          "book": {
+            "$ref": "#/components/schemas/BookSummary"
+          },
+          "followedAt": {
+            "type": "string",
+            "example": "2026-10-12 20:00:00"
+          },
+          "lastNotifiedChapterId": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true,
+            "example": 100
+          },
+          "lastNotifiedAt": {
+            "type": "string",
+            "nullable": true,
+            "example": "2026-10-12 20:00:00"
+          },
+          "hasUpdate": {
+            "type": "boolean",
+            "description": "当前最新章节是否超过上次确认提醒的章节",
+            "example": true
+          }
+        }
+      },
+      "BookPage": {
+        "type": "object",
+        "properties": {
+          "list": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BookSummary"
+            }
+          },
+          "page": {
+            "type": "integer",
+            "example": 1
+          },
+          "size": {
+            "type": "integer",
+            "example": 20
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64",
+            "example": 0
+          }
+        }
+      },
+      "ChapterPage": {
+        "type": "object",
+        "properties": {
+          "list": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChapterSummary"
+            }
+          },
+          "page": {
+            "type": "integer",
+            "example": 1
+          },
+          "size": {
+            "type": "integer",
+            "example": 20
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64",
+            "example": 0
+          }
+        }
+      },
+      "HistoryPage": {
+        "type": "object",
+        "properties": {
+          "list": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/HistoryItem"
+            }
+          },
+          "page": {
+            "type": "integer",
+            "example": 1
+          },
+          "size": {
+            "type": "integer",
+            "example": 20
+          },
+          "total": {
+            "type": "integer",
+            "format": "int64",
+            "example": 0
+          }
+        }
+      },
+      "HomeBooks": {
+        "type": "object",
+        "properties": {
+          "latest": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BookSummary"
+            }
+          },
+          "hot": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BookSummary"
+            }
+          },
+          "updated": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BookSummary"
+            }
+          }
+        }
+      },
+      "HomeBooksResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ResponseBase"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/HomeBooks"
+              }
+            }
+          }
+        ]
+      },
+      "CategoryListResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ResponseBase"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/Category"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "BookPageResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ResponseBase"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/BookPage"
+              }
+            }
+          }
+        ]
+      },
+      "BookListResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ResponseBase"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/BookSummary"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "BookResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ResponseBase"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/BookSummary"
+              }
+            }
+          }
+        ]
+      },
+      "CommentPageResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ResponseBase"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/CommentPage"
+              }
+            }
+          }
+        ]
+      },
+      "ChapterPageResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ResponseBase"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/ChapterPage"
+              }
+            }
+          }
+        ]
+      },
+      "ChapterContentResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ResponseBase"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/ChapterContent"
+              }
+            }
+          }
+        ]
+      },
+      "CaptchaResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ResponseBase"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/Captcha"
+              }
+            }
+          }
+        ]
+      },
+      "AuthResponseWrapper": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ResponseBase"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/AuthData"
+              }
+            }
+          }
+        ]
+      },
+      "UserProfileResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ResponseBase"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/User"
+              }
+            }
+          }
+        ]
+      },
+      "BookshelfListResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ResponseBase"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/BookshelfItem"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "HistoryPageResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ResponseBase"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/HistoryPage"
+              }
+            }
+          }
+        ]
+      },
+      "FollowingListResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ResponseBase"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/FollowingItem"
+                }
+              }
+            }
+          }
+        ]
+      },
+      "FollowingResponse": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/ResponseBase"
+          },
+          {
+            "type": "object",
+            "properties": {
+              "data": {
+                "$ref": "#/components/schemas/FollowingItem"
+              }
+            }
+          }
+        ]
+      },
+      "ResponseBase": {
+        "type": "object",
+        "required": [
+          "code",
+          "data",
+          "message"
+        ],
+        "properties": {
+          "code": {
+            "type": "string",
+            "description": "00000 表示成功",
+            "example": "00000"
+          },
+          "data": {
+            "description": "业务数据"
+          },
+          "message": {
+            "type": "string",
+            "example": "成功"
+          }
+        }
+      },
+      "UserLoginSummary": {
+        "type": "object",
+        "description": "现有 UserSummaryVO 的登录摘要字段；前端会转换为标准 User。",
+        "properties": {
+          "id": {
+            "type": "integer",
+            "format": "int64",
+            "example": 1
+          },
+          "username": {
+            "type": "string",
+            "example": "13800138000"
+          },
+          "nickname": {
+            "type": "string",
+            "example": "书友"
+          },
+          "avatar": {
+            "type": "string",
+            "nullable": true,
+            "example": null
+          }
+        }
+      }
+    }
+  }
+}

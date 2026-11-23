@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sdjz.novel.mapper.BookMapper">
+
+    <!-- 通用书籍基础查询片段：关联分类表、固定过滤上架状态 -->
+    <sql id="baseBookSelect">
+        SELECT
+        b.id,
+        b.book_name AS bookName,
+        b.author_name AS authorName,
+        b.category_id AS categoryId,
+        c.category_name AS categoryName,
+        b.pic_url AS picUrl,
+        b.book_desc AS bookDesc,
+        b.book_status AS bookStatus,
+        b.word_count AS wordCount,
+        b.visit_count AS visitCount,
+        b.chapter_count AS chapterCount,
+        b.first_chapter_id AS firstChapterId,
+        b.last_chapter_id AS lastChapterId,
+        b.last_chapter_name AS lastChapterName,
+        b.last_chapter_update_time AS lastChapterUpdateTime,
+        b.status,
+        b.create_time AS createTime,
+        b.update_time AS updateTime
+        FROM book_info b
+        JOIN book_category c ON c.id = b.category_id
+        WHERE b.status = 0
+        AND c.status = 0
+    </sql>
+
+    <!-- 首页-最新入库 -->
+    <select id="selectHomeLatest" resultType="com.sdjz.novel.pojo.vo.reader.BookSummaryVO">
+        <include refid="baseBookSelect"/>
+        ORDER BY b.create_time DESC
+        LIMIT 10
+    </select>
+
+    <!-- 首页-热门点击 -->
+    <select id="selectHomeHot" resultType="com.sdjz.novel.pojo.vo.reader.BookSummaryVO">
+        <include refid="baseBookSelect"/>
+        ORDER BY b.visit_count DESC
+        LIMIT 10
+    </select>
+
+    <!-- 首页-最近更新 -->
+    <select id="selectHomeUpdated" resultType="com.sdjz.novel.pojo.vo.reader.BookSummaryVO">
+        <include refid="baseBookSelect"/>
+        ORDER BY b.last_chapter_update_time DESC
+        LIMIT 10
+    </select>
+
+    <!-- 搜索/筛选分页查询 -->
+    <select id="selectBookPage" resultType="com.sdjz.novel.pojo.vo.reader.BookSummaryVO">
+        <include refid="baseBookSelect"/>
+        <if test="query.q != null and query.q != ''">
+            AND (b.book_name LIKE CONCAT('%', #{query.q}, '%')
+            OR b.author_name LIKE CONCAT('%', #{query.q}, '%'))
+        </if>
+        <if test="query.categoryId != null">
+            AND b.category_id = #{query.categoryId}
+        </if>
+        <if test="query.status != null">
+            AND b.book_status = #{query.status}
+        </if>
+        ORDER BY ${orderBy}
+        LIMIT #{offset}, #{query.size}
+    </select>
+
+    <!-- 搜索/筛选总数统计 -->
+    <select id="countBooks" resultType="java.lang.Long">
+        SELECT COUNT(*)
+        FROM book_info b
+        JOIN book_category c ON c.id = b.category_id
+        WHERE b.status = 0
+        AND c.status = 0
+        <if test="query.q != null and query.q != ''">
+            AND (b.book_name LIKE CONCAT('%', #{query.q}, '%')
+            OR b.author_name LIKE CONCAT('%', #{query.q}, '%'))
+        </if>
+        <if test="query.categoryId != null">
+            AND b.category_id = #{query.categoryId}
+        </if>
+        <if test="query.status != null">
+            AND b.book_status = #{query.status}
+        </if>
+    </select>
+
+    <!-- 根据ID查询书籍详情 -->
+    <select id="selectBookById" resultType="com.sdjz.novel.pojo.vo.reader.BookSummaryVO">
+        <include refid="baseBookSelect"/>
+        AND b.id = #{bookId}
+    </select>
+
+    <!-- 榜单查询 -->
+    <select id="selectRankBooks" resultType="com.sdjz.novel.pojo.vo.reader.BookSummaryVO">
+        <include refid="baseBookSelect"/>
+        ORDER BY ${orderBy}
+        LIMIT 20
+    </select>
+
+    <!-- 原子增加点击量（数据库层面自增，避免并发丢失） -->
+    <update id="increaseVisit">
+        UPDATE book_info
+        SET visit_count = visit_count + 1,
+        update_time = NOW()
+        WHERE id = #{bookId}
+        AND status = 0
+    </update>
+
+</mapper>

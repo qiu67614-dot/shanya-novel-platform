@@ -1,0 +1,48 @@
+# ---- 构建产物 ----
+target/
+dist/
+unpackage/
+build/
+node_modules/
+
+# ---- 日志 ----
+*.log
+logs/
+
+# ---- IDE / 本地配置 ----
+.idea/
+*.iml
+.vscode/
+.hbuilderx/
+.project
+.settings/
+.classpath
+.playwright-mcp/
+.taste-skill/
+*.local
+
+# ---- 环境变量与密钥（生产凭据一律走环境变量） ----
+.env
+.env.local
+.env.*.local
+novel.env
+*.pem
+*.key
+
+# ---- 系统文件 ----
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ---- 数据导出（体积大 / 含真实数据，只留本地） ----
+docs/novel-before-publication-20261116.sql
+
+# ---- 第三方版权内容（Public 仓库不得提交） ----
+docs/reader-doupocangqiong-first-100.sql
+
+# ---- 上游仓库备份（本地保留用于追溯来源，不提交） ----
+.git.upstream/
+
+# ---- 本地工作区数据与工具配置 ----
+.workbuddy/
+.claude/

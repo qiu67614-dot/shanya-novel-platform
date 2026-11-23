@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.sdjz.novel.mapper.CommentMapper">
+
+    <!-- 主评论：软删除后保留为“评论已删除”占位。 -->
+    <select id="selectRootPage"
+            resultType="com.sdjz.novel.pojo.vo.reader.CommentVO">
+        SELECT
+            c.id AS id,
+            c.user_id AS userId,
+            c.parent_comment_id AS parentCommentId,
+            u.nick_name AS nickName,
+            u.user_photo AS userPhoto,
+            NULL AS replyToNickName,
+            CASE WHEN c.status = 1 THEN '[评论已删除]' ELSE c.content END AS content,
+            (SELECT COUNT(*)
+               FROM book_comment r
+              WHERE r.parent_comment_id = c.id
+                AND r.status = 0) AS replyCount,
+            CASE WHEN c.status = 1 THEN TRUE ELSE FALSE END AS deleted,
+            c.create_time AS createTime,
+            c.update_time AS updateTime
+        FROM book_comment c
+        JOIN sys_user u ON u.id = c.user_id
+        WHERE c.book_id = #{bookId}
+          AND c.parent_comment_id IS NULL
+        ORDER BY c.create_time DESC, c.id DESC
+        LIMIT #{offset}, #{size}
+    </select>
+
+    <select id="countRootComments" resultType="java.lang.Long">
+        SELECT COUNT(*)
+        FROM book_comment c
+        WHERE c.book_id = #{bookId}
+          AND c.parent_comment_id IS NULL
+    </select>
+
+    <!-- 回复只返回正常记录；主评论即使已删除也可查看其回复。 -->
+    <select id="selectReplyPage"
+            resultType="com.sdjz.novel.pojo.vo.reader.CommentVO">
+        SELECT
+            c.id AS id,
+            c.user_id AS userId,
+            c.parent_comment_id AS parentCommentId,
+            u.nick_name AS nickName,
+            u.user_photo AS userPhoto,
+            p_user.nick_name AS replyToNickName,
+            c.content AS content,
+            0 AS replyCount,
+            FALSE AS deleted,
+            c.create_time AS createTime,
+            c.update_time AS updateTime
+        FROM book_comment c
+        JOIN book_comment p
+          ON p.id = c.parent_comment_id
+         AND p.book_id = #{bookId}
+         AND p.parent_comment_id IS NULL
+        JOIN sys_user u ON u.id = c.user_id
+        JOIN sys_user p_user ON p_user.id = p.user_id
+        WHERE c.book_id = #{bookId}
+          AND c.parent_comment_id = #{commentId}
+          AND c.status = 0
+        ORDER BY c.create_time ASC, c.id ASC
+        LIMIT #{offset}, #{size}
+    </select>
+
+    <select id="countReplies" resultType="java.lang.Long">
+        SELECT COUNT(*)
+        FROM book_comment c
+        JOIN book_comment p
+          ON p.id = c.parent_comment_id
+         AND p.book_id = #{bookId}
+         AND p.parent_comment_id IS NULL
+        WHERE c.book_id = #{bookId}
+          AND c.parent_comment_id = #{commentId}
+          AND c.status = 0
+    </select>
+
+    <select id="countReadableThread" resultType="int">
+        SELECT COUNT(*)
+        FROM book_comment
+        WHERE id = #{commentId}
+          AND book_id = #{bookId}
+          AND parent_comment_id IS NULL
+    </select>
+
+    <select id="countActiveRoot" resultType="int">
+        SELECT COUNT(*)
+        FROM book_comment
+        WHERE id = #{commentId}
+          AND book_id = #{bookId}
+          AND parent_comment_id IS NULL
+          AND status = 0
+    </select>
+
+    <insert id="insert">
+        INSERT INTO book_comment (
+            book_id,
+            user_id,
+            parent_comment_id,
+            content,
+            status,
+            create_time,
+            update_time
+        ) VALUES (
+            #{bookId},
+            #{userId},
+            #{parentCommentId},
+            #{content},
+            0,
+            NOW(),
+            NOW()
+        )
+    </insert>
+
+    <update id="softDelete">
+        UPDATE book_comment
+        SET status = 1,
+            update_time = NOW()
+        WHERE id = #{commentId}
+          AND user_id = #{userId}
+          AND status = 0
+    </update>
+
+</mapper>

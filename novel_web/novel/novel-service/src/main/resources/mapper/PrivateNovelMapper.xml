@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sdjz.novel.mapper.PrivateNovelMapper">
+    <sql id="novelSummary">
+        SELECT n.id, n.book_name AS bookName, n.cover_url AS picUrl,
+               n.original_file_name AS originalFileName, n.encoding,
+               n.file_size AS fileSize, n.word_count AS wordCount,
+               n.chapter_count AS chapterCount, n.first_chapter_id AS firstChapterId,
+               p.chapter_id AS lastReadChapterId,
+               pc.chapter_name AS lastReadChapterName, p.read_at AS lastReadAt,
+               n.create_time AS createTime, n.update_time AS updateTime,
+               COALESCE(s.visibility, 'PRIVATE') AS visibility,
+               s.author_name AS authorName, s.category_id AS categoryId,
+               s.book_desc AS bookDesc, s.rights_confirmed AS rightsConfirmed,
+               s.id AS submissionId, s.status AS submissionStatus,
+               s.rejection_reason AS rejectionReason, s.public_book_id AS publicBookId,
+               s.public_status AS publicStatus
+        FROM user_novel n
+        LEFT JOIN user_novel_progress p ON p.novel_id = n.id AND p.user_id = n.user_id
+        LEFT JOIN user_novel_chapter pc ON pc.id = p.chapter_id AND pc.novel_id = n.id
+        LEFT JOIN novel_submission s ON s.user_novel_id = n.id AND s.user_id = n.user_id
+    </sql>
+
+    <insert id="insertNovel" parameterType="com.sdjz.novel.pojo.entity.UserNovel"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO user_novel (user_id, book_name, cover_url, original_file_name, encoding,
+                                file_size, word_count, chapter_count)
+        VALUES (#{userId}, #{bookName}, #{coverUrl}, #{originalFileName}, #{encoding},
+                #{fileSize}, #{wordCount}, #{chapterCount})
+    </insert>
+
+    <insert id="insertChapter" parameterType="com.sdjz.novel.pojo.entity.UserNovelChapter"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO user_novel_chapter (novel_id, chapter_num, chapter_name, content, word_count)
+        VALUES (#{novelId}, #{chapterNum}, #{chapterName}, #{content}, #{wordCount})
+    </insert>
+
+    <update id="setFirstChapter">
+        UPDATE user_novel SET first_chapter_id = #{chapterId}
+        WHERE id = #{novelId}
+    </update>
+
+    <select id="selectPage" resultType="com.sdjz.novel.pojo.vo.reader.PrivateNovelVO">
+        <include refid="novelSummary"/>
+        WHERE n.user_id = #{userId}
+        ORDER BY COALESCE(p.read_at, n.create_time) DESC, n.id DESC
+        LIMIT #{offset}, #{size}
+    </select>
+
+    <select id="count" resultType="java.lang.Long">
+        SELECT COUNT(*) FROM user_novel WHERE user_id = #{userId}
+    </select>
+
+    <select id="selectNovel" resultType="com.sdjz.novel.pojo.vo.reader.PrivateNovelVO">
+        <include refid="novelSummary"/>
+        WHERE n.id = #{novelId} AND n.user_id = #{userId}
+        LIMIT 1
+    </select>
+
+    <sql id="chapterMeta">
+        SELECT c.id, c.novel_id AS bookId, c.chapter_num AS chapterNum,
+               c.chapter_name AS chapterName, c.word_count AS wordCount,
+               c.create_time AS createTime, c.update_time AS updateTime
+        FROM user_novel_chapter c
+        JOIN user_novel n ON n.id = c.novel_id AND n.user_id = #{userId}
+    </sql>
+
+    <select id="selectChapterPage" resultType="com.sdjz.novel.pojo.vo.reader.ChapterSummaryVO">
+        <include refid="chapterMeta"/>
+        WHERE c.novel_id = #{novelId}
+        ORDER BY c.chapter_num ASC
+        LIMIT #{offset}, #{size}
+    </select>
+
+    <select id="countChapters" resultType="java.lang.Long">
+        SELECT COUNT(*) FROM user_novel_chapter c
+        JOIN user_novel n ON n.id = c.novel_id AND n.user_id = #{userId}
+        WHERE c.novel_id = #{novelId}
+    </select>
+
+    <select id="selectChapterMeta" resultType="com.sdjz.novel.pojo.vo.reader.ChapterSummaryVO">
+        <include refid="chapterMeta"/>
+        WHERE c.novel_id = #{novelId} AND c.id = #{chapterId}
+        LIMIT 1
+    </select>
+
+    <select id="selectChapter" resultType="com.sdjz.novel.pojo.entity.UserNovelChapter">
+        SELECT c.id, c.novel_id AS novelId, c.chapter_num AS chapterNum,
+               c.chapter_name AS chapterName, c.content, c.word_count AS wordCount,
+               c.create_time AS createTime, c.update_time AS updateTime
+        FROM user_novel_chapter c
+        JOIN user_novel n ON n.id = c.novel_id AND n.user_id = #{userId}
+        WHERE c.novel_id = #{novelId} AND c.id = #{chapterId}
+        LIMIT 1
+    </select>
+
+    <select id="selectPreviousChapterId" resultType="java.lang.Long">
+        SELECT id FROM user_novel_chapter
+        WHERE novel_id = #{novelId} AND chapter_num &lt; #{chapterNum}
+        ORDER BY chapter_num DESC LIMIT 1
+    </select>
+
+    <select id="selectNextChapterId" resultType="java.lang.Long">
+        SELECT id FROM user_novel_chapter
+        WHERE novel_id = #{novelId} AND chapter_num &gt; #{chapterNum}
+        ORDER BY chapter_num ASC LIMIT 1
+    </select>
+
+    <insert id="upsertProgress">
+        INSERT INTO user_novel_progress (novel_id, user_id, chapter_id, read_at)
+        SELECT n.id, n.user_id, c.id, NOW()
+        FROM user_novel n
+        JOIN user_novel_chapter c ON c.novel_id = n.id AND c.id = #{chapterId}
+        WHERE n.id = #{novelId} AND n.user_id = #{userId}
+        ON DUPLICATE KEY UPDATE chapter_id = #{chapterId}, read_at = NOW()
+    </insert>
+
+    <delete id="deleteNovel">
+        DELETE FROM user_novel WHERE id = #{novelId} AND user_id = #{userId}
+    </delete>
+    <delete id="deleteProgress">
+        DELETE FROM user_novel_progress WHERE novel_id = #{novelId} AND user_id = #{userId}
+    </delete>
+    <delete id="deleteChapters">
+        DELETE c FROM user_novel_chapter c JOIN user_novel n ON n.id = c.novel_id
+        WHERE n.id = #{novelId} AND n.user_id = #{userId}
+    </delete>
+    <update id="updateNovelMeta">
+        UPDATE user_novel SET book_name = #{bookName}, original_file_name = #{originalFileName},
+            encoding = #{encoding}, file_size = #{fileSize}, word_count = #{wordCount},
+            chapter_count = #{chapterCount}, first_chapter_id = #{firstChapterId}
+        WHERE id = #{novelId} AND user_id = #{userId}
+    </update>
+    <update id="updateCover">
+        UPDATE user_novel SET cover_url = #{coverUrl}
+        WHERE id = #{novelId} AND user_id = #{userId}
+    </update>
+</mapper>

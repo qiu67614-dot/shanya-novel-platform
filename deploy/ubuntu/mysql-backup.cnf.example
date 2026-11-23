@@ -1,0 +1,5 @@
+# Install as /etc/novel/mysql-backup.cnf with owner root:novel and mode 0640.
+[client]
+user=novel_backup
+password=REPLACE_WITH_RANDOM_BACKUP_PASSWORD
+host=127.0.0.1

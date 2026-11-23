@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.sdjz.novel.mapper.HistoryMapper">
+
+    <resultMap id="HistoryEntryResultMap"
+               type="com.sdjz.novel.pojo.vo.reader.HistoryEntryVO">
+
+        <result column="history_chapter_id" property="chapterId"/>
+        <result column="history_chapter_name" property="chapterName"/>
+        <result column="history_read_at" property="readAt"/>
+        <result column="history_create_time" property="createTime"/>
+        <result column="history_update_time" property="updateTime"/>
+
+        <association property="book"
+                     javaType="com.sdjz.novel.pojo.vo.reader.BookSummaryVO">
+            <id column="book_id" property="id"/>
+            <result column="book_name" property="bookName"/>
+            <result column="author_name" property="authorName"/>
+            <result column="category_id" property="categoryId"/>
+            <result column="category_name" property="categoryName"/>
+            <result column="pic_url" property="picUrl"/>
+            <result column="book_desc" property="bookDesc"/>
+            <result column="book_status" property="bookStatus"/>
+            <result column="word_count" property="wordCount"/>
+            <result column="visit_count" property="visitCount"/>
+            <result column="chapter_count" property="chapterCount"/>
+            <result column="first_chapter_id" property="firstChapterId"/>
+            <result column="book_last_chapter_id" property="lastChapterId"/>
+            <result column="book_last_chapter_name" property="lastChapterName"/>
+            <result column="last_chapter_update_time" property="lastChapterUpdateTime"/>
+            <result column="book_status_flag" property="status"/>
+            <result column="book_create_time" property="createTime"/>
+            <result column="book_update_time" property="updateTime"/>
+        </association>
+    </resultMap>
+
+    <sql id="historyFrom">
+        FROM user_read_history h
+        JOIN book_info b
+          ON b.id = h.book_id
+         AND b.status = 0
+        JOIN book_category c
+          ON c.id = b.category_id
+         AND c.status = 0
+    </sql>
+
+    <select id="selectPage" resultMap="HistoryEntryResultMap">
+        SELECT
+            h.chapter_id AS history_chapter_id,
+            h.chapter_name AS history_chapter_name,
+            h.read_at AS history_read_at,
+            h.create_time AS history_create_time,
+            h.update_time AS history_update_time,
+            b.id AS book_id,
+            b.book_name AS book_name,
+            b.author_name AS author_name,
+            b.category_id AS category_id,
+            c.category_name AS category_name,
+            b.pic_url AS pic_url,
+            b.book_desc AS book_desc,
+            b.book_status AS book_status,
+            b.word_count AS word_count,
+            b.visit_count AS visit_count,
+            b.chapter_count AS chapter_count,
+            b.first_chapter_id AS first_chapter_id,
+            b.last_chapter_id AS book_last_chapter_id,
+            b.last_chapter_name AS book_last_chapter_name,
+            b.last_chapter_update_time AS last_chapter_update_time,
+            b.status AS book_status_flag,
+            b.create_time AS book_create_time,
+            b.update_time AS book_update_time
+        <include refid="historyFrom"/>
+        WHERE h.user_id = #{userId}
+        ORDER BY h.read_at DESC, h.id DESC
+        LIMIT #{offset}, #{size}
+    </select>
+
+    <select id="count" resultType="java.lang.Long">
+        SELECT COUNT(*)
+        <include refid="historyFrom"/>
+        WHERE h.user_id = #{userId}
+    </select>
+
+    <select id="selectChapterOfBook"
+            resultType="com.sdjz.novel.pojo.vo.reader.ChapterSummaryVO">
+        SELECT
+            bc.id,
+            bc.book_id AS bookId,
+            bc.chapter_num AS chapterNum,
+            bc.chapter_name AS chapterName,
+            bc.word_count AS wordCount,
+            bc.update_time AS updateTime,
+            bc.create_time AS createTime
+        FROM book_chapter bc
+        WHERE bc.book_id = #{bookId}
+          AND bc.id = #{chapterId}
+        LIMIT 1
+    </select>
+
+    <insert id="upsert">
+        INSERT INTO user_read_history (
+            user_id,
+            book_id,
+            chapter_id,
+            chapter_name,
+            read_at,
+            create_time,
+            update_time
+        ) VALUES (
+            #{userId},
+            #{bookId},
+            #{chapterId},
+            #{chapterName},
+            NOW(),
+            NOW(),
+            NOW()
+        )
+        ON DUPLICATE KEY UPDATE
+            chapter_id = #{chapterId},
+            chapter_name = #{chapterName},
+            read_at = NOW(),
+            update_time = NOW()
+    </insert>
+
+    <update id="updateBookshelfProgress">
+        UPDATE user_bookshelf
+        SET last_chapter_id = #{chapterId},
+            last_chapter_name = #{chapterName},
+            last_read_at = NOW(),
+            update_time = NOW()
+        WHERE user_id = #{userId}
+          AND book_id = #{bookId}
+    </update>
+
+</mapper>

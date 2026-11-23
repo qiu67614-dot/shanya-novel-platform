@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.sdjz.novel.mapper.FollowingMapper">
+
+    <resultMap id="FollowingBookResultMap"
+               type="com.sdjz.novel.pojo.vo.reader.FollowingBookVO">
+        <result column="followed_at" property="followedAt"/>
+        <result column="last_notified_chapter_id" property="lastNotifiedChapterId"/>
+        <result column="last_notified_at" property="lastNotifiedAt"/>
+        <result column="has_update" property="hasUpdate"/>
+
+        <association property="book"
+                     javaType="com.sdjz.novel.pojo.vo.reader.BookSummaryVO">
+            <id column="book_id" property="id"/>
+            <result column="book_name" property="bookName"/>
+            <result column="author_name" property="authorName"/>
+            <result column="category_id" property="categoryId"/>
+            <result column="category_name" property="categoryName"/>
+            <result column="pic_url" property="picUrl"/>
+            <result column="book_desc" property="bookDesc"/>
+            <result column="book_status" property="bookStatus"/>
+            <result column="word_count" property="wordCount"/>
+            <result column="visit_count" property="visitCount"/>
+            <result column="chapter_count" property="chapterCount"/>
+            <result column="first_chapter_id" property="firstChapterId"/>
+            <result column="last_chapter_id" property="lastChapterId"/>
+            <result column="last_chapter_name" property="lastChapterName"/>
+            <result column="last_chapter_update_time" property="lastChapterUpdateTime"/>
+            <result column="book_status_flag" property="status"/>
+            <result column="book_create_time" property="createTime"/>
+            <result column="book_update_time" property="updateTime"/>
+        </association>
+    </resultMap>
+
+    <sql id="followingSelect">
+        SELECT
+            f.create_time AS followed_at,
+            f.last_notified_chapter_id,
+            f.last_notified_at,
+            CASE
+                WHEN b.last_chapter_id IS NOT NULL
+                 AND (f.last_notified_chapter_id IS NULL
+                      OR f.last_notified_chapter_id &lt;&gt; b.last_chapter_id)
+                THEN TRUE
+                ELSE FALSE
+            END AS has_update,
+            b.id AS book_id,
+            b.book_name AS book_name,
+            b.author_name AS author_name,
+            b.category_id AS category_id,
+            c.category_name AS category_name,
+            b.pic_url AS pic_url,
+            b.book_desc AS book_desc,
+            b.book_status AS book_status,
+            b.word_count AS word_count,
+            b.visit_count AS visit_count,
+            b.chapter_count AS chapter_count,
+            b.first_chapter_id AS first_chapter_id,
+            b.last_chapter_id AS last_chapter_id,
+            b.last_chapter_name AS last_chapter_name,
+            b.last_chapter_update_time AS last_chapter_update_time,
+            b.status AS book_status_flag,
+            b.create_time AS book_create_time,
+            b.update_time AS book_update_time
+        FROM user_book_follow f
+        JOIN book_info b
+          ON b.id = f.book_id
+         AND b.status = 0
+        JOIN book_category c
+          ON c.id = b.category_id
+         AND c.status = 0
+    </sql>
+
+    <select id="selectByUserId" resultMap="FollowingBookResultMap">
+        <include refid="followingSelect"/>
+        WHERE f.user_id = #{userId}
+        ORDER BY has_update DESC,
+                 b.last_chapter_update_time DESC,
+                 f.create_time DESC,
+                 f.id DESC
+    </select>
+
+    <select id="selectOne" resultMap="FollowingBookResultMap">
+        <include refid="followingSelect"/>
+        WHERE f.user_id = #{userId}
+          AND f.book_id = #{bookId}
+        LIMIT 1
+    </select>
+
+    <insert id="upsert">
+        INSERT INTO user_book_follow (
+            user_id,
+            book_id,
+            last_notified_chapter_id,
+            last_notified_at,
+            create_time,
+            update_time
+        ) VALUES (
+            #{userId},
+            #{bookId},
+            #{chapterId},
+            NOW(),
+            NOW(),
+            NOW()
+        )
+        ON DUPLICATE KEY UPDATE
+            update_time = NOW()
+    </insert>
+
+    <delete id="deleteByUserAndBook">
+        DELETE FROM user_book_follow
+        WHERE user_id = #{userId}
+          AND book_id = #{bookId}
+    </delete>
+
+    <update id="markRead">
+        UPDATE user_book_follow
+        SET last_notified_chapter_id = #{chapterId},
+            last_notified_at = NOW(),
+            update_time = NOW()
+        WHERE user_id = #{userId}
+          AND book_id = #{bookId}
+    </update>
+
+</mapper>

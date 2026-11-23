@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sdjz.novel.mapper.MeMapper">
+
+
+    <update id="updateById">
+        UPDATE `user`
+        <set>
+            <if test="nickName != null">nick_name = #{nickName},</if>
+            <if test="userPhoto != null">user_photo = #{userPhoto},</if>
+            <if test="userSex != null">user_sex = #{userSex},</if>
+            <if test="userBirthday != null">user_birthday = #{userBirthday},</if>
+            <if test="userPhone != null">user_phone = #{userPhone},</if>
+            <if test="userEmail != null">user_email = #{userEmail},</if>
+            update_time = NOW()
+        </set>
+        WHERE id = #{id}
+
+    </update>
+</mapper>

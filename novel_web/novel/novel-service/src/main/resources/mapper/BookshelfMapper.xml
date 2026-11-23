@@ -1,0 +1,141 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="com.sdjz.novel.mapper.BookshelfMapper">
+
+    <!-- 书架条目：书架记录 + 书籍精简信息，只映射实际查询的字段 -->
+    <resultMap id="BookshelfEntryResultMap"
+               type="com.sdjz.novel.pojo.vo.reader.BookshelfEntryVO">
+
+        <result column="last_chapter_id" property="lastChapterId"/>
+        <result column="last_chapter_name" property="lastChapterName"/>
+        <result column="last_read_at" property="lastReadAt"/>
+        <result column="shelf_create_time" property="createTime"/>
+        <result column="shelf_update_time" property="updateTime"/>
+
+        <association property="book"
+                     javaType="com.sdjz.novel.pojo.vo.reader.BookSummaryVO">
+
+            <id column="book_id" property="id"/>
+            <result column="book_name" property="bookName"/>
+            <result column="author_name" property="authorName"/>
+            <result column="pic_url" property="picUrl"/>
+            <result column="book_status" property="bookStatus"/>
+            <result column="word_count" property="wordCount"/>
+            <result column="book_last_chapter_id" property="lastChapterId"/>
+            <result column="book_last_chapter_name" property="lastChapterName"/>
+            <result column="book_last_chapter_update_time" property="lastChapterUpdateTime"/>
+        </association>
+
+
+    </resultMap>
+
+    <!-- 书架查询片段：user_bookshelf JOIN book_info，不关联分类表，只取精简字段 -->
+    <sql id="shelfSelect">
+        SELECT
+        s.book_id AS book_id,
+        b.book_name AS book_name,
+        b.author_name AS author_name,
+        b.pic_url AS pic_url,
+        b.book_status AS book_status,
+        b.word_count AS word_count,
+        b.last_chapter_id AS book_last_chapter_id,
+        b.last_chapter_name AS book_last_chapter_name,
+        b.last_chapter_update_time AS book_last_chapter_update_time,
+
+        s.last_chapter_id AS last_chapter_id,
+        s.last_chapter_name AS last_chapter_name,
+        s.last_read_at AS last_read_at,
+        s.create_time AS shelf_create_time,
+        s.update_time AS shelf_update_time
+
+        FROM user_bookshelf s
+        JOIN book_info b
+        ON b.id = s.book_id
+        AND b.status = 0
+    </sql>
+
+    <select id="selectByUserId"
+            resultMap="BookshelfEntryResultMap">
+
+        <include refid="shelfSelect"/>
+
+        WHERE s.user_id = #{userId}
+        ORDER BY COALESCE(s.last_read_at, s.update_time, s.create_time) DESC
+    </select>
+
+    <select id="selectOne"
+            resultMap="BookshelfEntryResultMap">
+
+        <include refid="shelfSelect"/>
+
+        WHERE s.user_id = #{userId}
+        AND s.book_id = #{bookId}
+        LIMIT 1
+    </select>
+
+    <!-- 章节归属校验：只查 book_chapter，书籍是否上架由 Service 层 selectBookById 负责 -->
+    <select id="selectChapterOfBook"
+            resultType="com.sdjz.novel.pojo.vo.reader.ChapterSummaryVO">
+
+        SELECT
+        bc.id,
+        bc.book_id AS bookId,
+        bc.chapter_num AS chapterNum,
+        bc.chapter_name AS chapterName,
+        bc.word_count AS wordCount,
+        bc.update_time AS updateTime,
+        bc.create_time AS createTime
+        FROM book_chapter bc
+        WHERE bc.book_id = #{bookId}
+        AND bc.id = #{chapterId}
+        LIMIT 1
+    </select>
+
+    <insert id="upsert">
+        INSERT INTO user_bookshelf (
+        user_id,
+        book_id,
+        last_chapter_id,
+        last_chapter_name,
+        last_read_at,
+        create_time,
+        update_time
+        )
+        VALUES (
+        #{userId},
+        #{bookId},
+        #{chapterId},
+        #{chapterName},
+        IF(#{chapterId} IS NULL, NULL, NOW()),
+        NOW(),
+        NOW()
+        )
+        ON DUPLICATE KEY UPDATE
+        last_chapter_id =
+        IF(#{chapterId} IS NULL,
+        last_chapter_id,
+        #{chapterId}),
+
+        last_chapter_name =
+        IF(#{chapterId} IS NULL,
+        last_chapter_name,
+        #{chapterName}),
+
+        last_read_at =
+        IF(#{chapterId} IS NULL,
+        last_read_at,
+        NOW()),
+
+        update_time = NOW()
+    </insert>
+
+    <delete id="deleteByUserAndBook">
+        DELETE FROM user_bookshelf
+        WHERE user_id = #{userId}
+        AND book_id = #{bookId}
+    </delete>
+
+</mapper>

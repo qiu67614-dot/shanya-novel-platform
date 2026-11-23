@@ -1,0 +1,54 @@
+spring:
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 23MB
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://localhost:3306/novel?characterEncoding=utf8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    username: root
+    password: 1234
+  data:
+    redis:
+      host: 127.0.0.1
+      port: 6379
+      database: 0
+      timeout: 3000ms
+
+aliyun:
+  oss:
+    endpoint: ${NOVEL_OSS_ENDPOINT:}
+    bucket: ${NOVEL_OSS_BUCKET:}
+    access-key-id: ${NOVEL_OSS_ACCESS_KEY_ID:}
+    access-key-secret: ${NOVEL_OSS_ACCESS_KEY_SECRET:}
+    public-base-url: ${NOVEL_OSS_PUBLIC_BASE_URL:}
+mybatis-plus:
+  mapper-locations: classpath:mapper/*.xml
+  type-aliases-package: com.sdjz.novel.pojo.entity
+  configuration:
+    map-underscore-to-camel-case: true
+    # SQL 日志交给 slf4j/logback 统一输出，避免 StdOutImpl 直接打印到控制台
+    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
+
+logging:
+  level:
+    com.sdjz.novel.mapper: debug
+
+jwt:
+  secret: novel-jwt-secret-key-2026-very-long-secret-string
+  expire-hour: 24
+
+admin:
+  jwt:
+    secret: ${NOVEL_ADMIN_JWT_SECRET:novel-admin-jwt-2026-secret-key}
+    expire-hour: 8
+  bootstrap:
+    username: ${NOVEL_ADMIN_BOOTSTRAP_USERNAME:}
+    password: ${NOVEL_ADMIN_BOOTSTRAP_PASSWORD:}
+
+captcha:
+  expire-seconds: 300
+
+reader:
+  cache:
+    enabled: true

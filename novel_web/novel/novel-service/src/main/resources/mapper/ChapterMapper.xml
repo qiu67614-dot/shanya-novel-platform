@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sdjz.novel.mapper.ChapterMapper">
+
+    <!-- 章节目录分页：不查询正文大字段 -->
+    <select id="selectChapterPage" resultType="com.sdjz.novel.pojo.vo.reader.ChapterSummaryVO">
+        SELECT
+        id,
+        book_id AS bookId,
+        chapter_num AS chapterNum,
+        chapter_name AS chapterName,
+        word_count AS wordCount,
+        update_time AS updateTime,
+        create_time AS createTime
+        FROM book_chapter
+        WHERE book_id = #{bookId}
+        ORDER BY chapter_num ASC
+        LIMIT #{offset}, #{size}
+    </select>
+
+    <!-- 章节总数统计 -->
+    <select id="countChapters" resultType="java.lang.Long">
+        SELECT COUNT(*)
+        FROM book_chapter
+        WHERE book_id = #{bookId}
+    </select>
+
+    <!-- 查询章节正文+精简书籍信息 -->
+    <select id="selectChapterContent" resultMap="ChapterContentResultMap">
+        SELECT
+        bc.id AS chapter_id,
+        bc.book_id AS chapter_book_id,
+        bc.chapter_num AS chapter_num,
+        bc.chapter_name AS chapter_name,
+        bc.word_count AS chapter_word_count,
+        bc.update_time AS chapter_update_time,
+        bc.create_time AS chapter_create_time,
+        bct.content AS content,
+        bi.id AS book_id,
+        bi.book_name AS book_name,
+        bi.author_name AS book_author_name
+        FROM book_chapter bc
+        JOIN book_content bct ON bct.chapter_id = bc.id
+        JOIN book_info bi ON bi.id = bc.book_id
+        WHERE bc.id = #{chapterId}
+        AND bi.status = 0
+    </select>
+
+    <!--
+        resultMap 严格遵循 DTD 顺序：
+        1. id/result（普通字段） → 2. association（关联对象）
+    -->
+    <resultMap id="ChapterContentResultMap" type="com.sdjz.novel.pojo.vo.reader.ChapterContentVO">
+        <!-- 1. 顶级普通字段：必须放在所有 association 之前 -->
+        <result column="content" property="content"/>
+
+        <!-- 2. 书籍精简信息关联对象 -->
+        <association property="book" javaType="com.sdjz.novel.pojo.vo.reader.BookBriefVO">
+            <id column="book_id" property="id"/>
+            <result column="book_name" property="bookName"/>
+            <result column="book_author_name" property="authorName"/>
+        </association>
+
+        <!-- 3. 章节基本信息关联对象 -->
+        <association property="chapter" javaType="com.sdjz.novel.pojo.vo.reader.ChapterSummaryVO">
+            <id column="chapter_id" property="id"/>
+            <result column="chapter_book_id" property="bookId"/>
+            <result column="chapter_num" property="chapterNum"/>
+            <result column="chapter_name" property="chapterName"/>
+            <result column="chapter_word_count" property="wordCount"/>
+            <result column="chapter_update_time" property="updateTime"/>
+            <result column="chapter_create_time" property="createTime"/>
+        </association>
+    </resultMap>
+
+    <!-- 上一章ID：通过章节序号计算，不依赖ID连续 -->
+    <select id="selectPreviousChapterId" resultType="java.lang.Long">
+        SELECT id
+        FROM book_chapter
+        WHERE book_id = #{bookId}
+        AND chapter_num = #{chapterNum} - 1
+        LIMIT 1
+    </select>
+
+    <!-- 下一章ID -->
+    <select id="selectNextChapterId" resultType="java.lang.Long">
+        SELECT id
+        FROM book_chapter
+        WHERE book_id = #{bookId}
+        AND chapter_num = #{chapterNum} + 1
+        LIMIT 1
+    </select>
+
+</mapper>

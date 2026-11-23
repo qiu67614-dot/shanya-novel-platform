@@ -1,0 +1,10 @@
+[Unit]
+Description=Daily Novel MySQL backup
+
+[Timer]
+OnCalendar=*-*-* 02:30:00 Asia/Shanghai
+Persistent=true
+Unit=novel-backup.service
+
+[Install]
+WantedBy=timers.target

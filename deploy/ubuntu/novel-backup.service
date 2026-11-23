@@ -1,0 +1,15 @@
+[Unit]
+Description=Backup Novel MySQL database to OSS
+After=mysql.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=novel
+Group=novel
+EnvironmentFile=/etc/novel/backup.env
+ExecStart=/opt/novel/novel-backup.sh
+NoNewPrivileges=true
+ProtectSystem=strict
+ReadWritePaths=/var/backups/novel
+ProtectHome=false

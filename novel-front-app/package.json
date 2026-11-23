@@ -1,0 +1,24 @@
+{
+  "name": "novel-front-app",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev:h5": "set UNI_INPUT_DIR=.&& uni -p h5 --host 127.0.0.1 --port 1026",
+    "build:h5": "set UNI_INPUT_DIR=.&& uni build -p h5",
+    "build:app": "set UNI_INPUT_DIR=.&& uni build -p app-plus"
+  },
+  "dependencies": {
+    "@dcloudio/uni-app": "3.0.0-alpha-5030620261112001",
+    "@dcloudio/uni-app-plus": "3.0.0-alpha-5030620261112001",
+    "@dcloudio/uni-components": "3.0.0-alpha-5030620261112001",
+    "@dcloudio/uni-h5": "3.0.0-alpha-5030620261112001",
+    "@dcloudio/uni-mp-weixin": "3.0.0-alpha-5030620261112001",
+    "vue": "3.4.21"
+  },
+  "devDependencies": {
+    "@dcloudio/types": "3.4.31",
+    "@dcloudio/vite-plugin-uni": "3.0.0-alpha-5030620261112001",
+    "vite": "5.2.8"
+  }
+}

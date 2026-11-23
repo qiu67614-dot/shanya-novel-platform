@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>com.sdjz.novel</groupId>
+    <artifactId>novel-parent</artifactId>
+    <version>1.0.0</version>
+    <name>novel-parent</name>
+    <description>小说项目父工程</description>
+    <packaging>pom</packaging>
+
+    <!-- 子模块列表 -->
+    <modules>
+        <module>novel-pojo</module>
+        <module>novel-common</module>
+        <module>novel-service</module>
+    </modules>
+
+    <properties>
+        <java.version>17</java.version>
+        <!-- 父工程是手工import BOM而非继承starter-parent，java.version不会被自动读取，需显式接到编译器 -->
+        <maven.compiler.release>${java.version}</maven.compiler.release>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
+        <spring-boot.version>3.3.0</spring-boot.version>
+        <mybatis.version>2.3.1</mybatis.version>
+        <mybatis-plus.version>3.5.5</mybatis-plus.version>
+        <jjwt.version>0.11.5</jjwt.version>
+        <lombok.version>1.18.32</lombok.version>
+        <caffeine.version>3.1.0</caffeine.version>
+        <redisson.version>3.17.4</redisson.version>
+        <mysql.version>8.0.33</mysql.version>
+        <shardingsphere.version>5.5.1</shardingsphere.version>
+        <elasticsearch.version>8.2.0</elasticsearch.version>
+        <rabbitmq.version>3.10.2</rabbitmq.version>
+        <xxl-job.version>2.3.1</xxl-job.version>
+        <sentinel.version>1.8.4</sentinel.version>
+        <springdoc.version>2.0.0</springdoc.version>
+    </properties>
+
+    <!-- 统一管理所有依赖版本，子模块引用不用写version -->
+    <dependencyManagement>
+        <dependencies>
+            <!-- 子模块之间依赖 -->
+            <dependency>
+                <groupId>com.sdjz.novel</groupId>
+                <artifactId>novel-pojo</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.sdjz.novel</groupId>
+                <artifactId>novel-common</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <!-- SpringBoot BOM 锁定全家桶版本 -->
+            <dependency>
+                <groupId>org.springframework.boot</groupId>
+                <artifactId>spring-boot-dependencies</artifactId>
+                <version>${spring-boot.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <!-- SpringBoot3 专用MybatisPlus启动器 -->
+            <dependency>
+                <groupId>com.baomidou</groupId>
+                <artifactId>mybatis-plus-spring-boot3-starter</artifactId>
+                <version>${mybatis-plus.version}</version>
+            </dependency>
+
+            <dependency>
+                <groupId>io.jsonwebtoken</groupId>
+                <artifactId>jjwt-api</artifactId>
+                <version>${jjwt.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.projectlombok</groupId>
+                <artifactId>lombok</artifactId>
+                <version>${lombok.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.github.ben-manes.caffeine</groupId>
+                <artifactId>caffeine</artifactId>
+                <version>${caffeine.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.redisson</groupId>
+                <artifactId>redisson-spring-boot-starter</artifactId>
+                <version>${redisson.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.mybatis.spring.boot</groupId>
+                <artifactId>mybatis-spring-boot-starter</artifactId>
+                <version>${mybatis.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.mysql</groupId>
+                <artifactId>mysql-connector-j</artifactId>
+                <version>${mysql.version}</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+</project>

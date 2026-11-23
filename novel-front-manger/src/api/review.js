@@ -1,0 +1,16 @@
+import client from './client.js'
+
+export const login = (data) => client.post('/admin/auth/login', data)
+export const submissions = (params) => client.get('/admin/submissions', { params })
+export const submission = (id) => client.get(`/admin/submissions/${id}`)
+export const chapters = (id) => client.get(`/admin/submissions/${id}/chapters`)
+export const chapter = (id, chapterId) => client.get(`/admin/submissions/${id}/chapters/${chapterId}`)
+export const approve = (id, data) => client.post(`/admin/submissions/${id}/approve`, data)
+export const reject = (id, reason) => client.post(`/admin/submissions/${id}/reject`, { reason })
+export const withdrawals = (params) => client.get('/admin/withdrawals', { params })
+export const publications = (params) => client.get('/admin/submissions', { params: { ...params, status: 'APPROVED' } })
+export const approveWithdrawal = (id) => client.post(`/admin/withdrawals/${id}/approve`)
+export const rejectWithdrawal = (id, reason) => client.post(`/admin/withdrawals/${id}/reject`, { reason })
+export const takeDown = (bookId, reason) => client.post(`/admin/publications/${bookId}/take-down`, { reason })
+export const auditLogs = (params) => client.get('/admin/audit-logs', { params })
+export const categories = () => client.get('/front/categories')

@@ -1,0 +1,54 @@
+{
+ "url": "http://localhost:1028/book/1",
+ "views": {
+  "desktop": {
+   "width": 1440,
+   "height": 900,
+   "navH": 0,
+   "scrollHeight": 1287,
+   "screens": 1.43,
+   "sections": [
+    {
+     "n": 1,
+     "tag": "div",
+     "id": "",
+     "cls": "book-detail-page",
+     "top": 119,
+     "h": 947,
+     "hScreens": 1.05,
+     "offGrid": 47,
+     "tiles": [
+      {
+       "file": "desktop-sec-01-a.jpg",
+       "scrollY": 119
+      },
+      {
+       "file": "desktop-sec-01-b.jpg",
+       "scrollY": 166
+      }
+     ]
+    },
+    {
+     "n": 2,
+     "tag": "footer",
+     "id": "",
+     "cls": "reader-footer",
+     "top": 1154,
+     "h": 133,
+     "hScreens": 0.15,
+     "offGrid": 133,
+     "tiles": [
+      {
+       "file": "desktop-sec-02-a.jpg",
+       "scrollY": 387,
+       "cutTop": 767,
+       "height": 133
+      }
+     ]
+    }
+   ],
+   "consoleErrors": []
+  }
+ },
+ "at": "2026-11-16T15:06:43.439Z"
+}

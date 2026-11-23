@@ -1,0 +1,91 @@
+package com.sdjz.novel.controller.auth;
+
+import cn.hutool.captcha.CaptchaUtil;
+import cn.hutool.captcha.LineCaptcha;
+import com.sdjz.novel.common.response.RestResp;
+import com.sdjz.novel.common.util.RedisUtil;
+import com.sdjz.novel.pojo.dto.user.UserLoginDTO;
+import com.sdjz.novel.pojo.dto.user.UserRegisterDTO;
+import com.sdjz.novel.pojo.vo.user.CaptchaVO;
+import com.sdjz.novel.pojo.vo.user.UserLoginVO;
+import com.sdjz.novel.service.SysUserService;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.web.bind.annotation.*;
+
+import java.io.ByteArrayOutputStream;
+import java.io.IOException;
+import java.util.Base64;
+import java.util.UUID;
+import java.util.concurrent.TimeUnit;
+
+
+
+@Slf4j
+@RestController
+@RequestMapping("/front/auth")
+@RequiredArgsConstructor
+public class FrontUserController {
+
+    @Autowired
+    SysUserService sysUserService;
+    @Autowired
+    RedisUtil redisUtil;
+    private static final String CAPTCHA_KEY_PREFIX = "captcha:";
+    // 验证码过期时间 5分钟
+    private static final int CAPTCHA_EXPIRE_MINUTE = 5;
+
+    /**
+     * 注册
+     */
+    @PostMapping("/register")
+    public RestResp<UserLoginVO> register(@Valid @RequestBody UserRegisterDTO dto) {
+        String name = dto.getUsername();
+        log.info("{},开始注册", name);
+        UserLoginVO vo = sysUserService.register(dto);
+        return RestResp.ok(vo);
+    }
+
+    /**
+     * 登录
+     */
+    @PostMapping("/login")
+    public RestResp<UserLoginVO> login(@Valid @RequestBody UserLoginDTO dto) {
+        String name = dto.getUsername();
+        log.info("{},开始登录", name);
+        UserLoginVO vo = sysUserService.login(dto);
+        return RestResp.ok(vo);
+    }
+    /**
+     * 发送验证码
+     */
+    @GetMapping("/captcha")
+    public RestResp<CaptchaVO> getImgVerifyCode() throws IOException {
+        log.info("开始生成验证码");
+        // 生成4位验证码
+        LineCaptcha lineCaptcha = CaptchaUtil.createLineCaptcha(120, 40, 4, 20);
+        String code = lineCaptcha.getCode();
+
+        // sessionId UUID
+        String sessionId = UUID.randomUUID().toString().replace("-", "");
+
+        // 验证码存入Redis，5分钟过期
+        redisUtil.set(CAPTCHA_KEY_PREFIX + sessionId, code, CAPTCHA_EXPIRE_MINUTE, TimeUnit.MINUTES);
+
+        // 输出base64，不要 data:image/png;base64, 前缀（前端文档约定）
+        try (ByteArrayOutputStream bos = new ByteArrayOutputStream()) {
+            lineCaptcha.write(bos);
+            byte[] bytes = bos.toByteArray();
+            String base64Img = Base64.getEncoder().encodeToString(bytes);
+
+            CaptchaVO vo = new CaptchaVO();
+            vo.setImg(base64Img);
+            vo.setSessionId(sessionId);
+            vo.setCaptchaKey(sessionId);
+            vo.setImage("data:image/png;base64," + base64Img);
+            return RestResp.ok(vo);
+        }
+    }
+}

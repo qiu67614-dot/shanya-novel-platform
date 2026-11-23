@@ -1,0 +1,248 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sdjz.novel.mapper.PublicationMapper">
+    <select id="selectAdminByUsername" resultType="com.sdjz.novel.pojo.entity.AdminUser">
+        SELECT id, username, password_hash AS passwordHash, status, last_login_at AS lastLoginAt,
+               create_time AS createTime, update_time AS updateTime
+        FROM admin_user WHERE username = #{username} LIMIT 1
+    </select>
+    <select id="selectAdminById" resultType="com.sdjz.novel.pojo.entity.AdminUser">
+        SELECT id, username, status FROM admin_user WHERE id = #{adminId} LIMIT 1
+    </select>
+    <insert id="insertAdmin" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO admin_user (username, password_hash) VALUES (#{username}, #{passwordHash})
+    </insert>
+    <update id="touchAdminLogin">
+        UPDATE admin_user SET last_login_at = NOW() WHERE id = #{adminId} AND status = 0
+    </update>
+    <select id="countEnabledCategory" resultType="int">
+        SELECT COUNT(*) FROM book_category WHERE id = #{categoryId} AND status = 0
+    </select>
+    <insert id="insertSubmission" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO novel_submission (user_novel_id, user_id, visibility, book_name, author_name,
+                                      category_id, book_desc, cover_url, rights_confirmed, status)
+        VALUES (#{userNovelId}, #{userId}, 'PUBLIC', #{bookName}, #{authorName},
+                #{categoryId}, #{bookDesc}, #{coverUrl}, #{rightsConfirmed}, 'PENDING')
+    </insert>
+    <select id="selectSubmissionByNovel" resultType="com.sdjz.novel.pojo.entity.NovelSubmission">
+        SELECT id, user_novel_id AS userNovelId, user_id AS userId, visibility,
+               book_name AS bookName, author_name AS authorName, category_id AS categoryId,
+               book_desc AS bookDesc, cover_url AS coverUrl, rights_confirmed AS rightsConfirmed, status,
+               public_status AS publicStatus, rejection_reason AS rejectionReason,
+               public_book_id AS publicBookId, reviewed_by AS reviewedBy,
+               submitted_at AS submittedAt, reviewed_at AS reviewedAt,
+               create_time AS createTime, update_time AS updateTime
+        FROM novel_submission WHERE user_novel_id = #{novelId} AND user_id = #{userId} LIMIT 1
+    </select>
+    <select id="lockSubmissionByNovel" resultType="com.sdjz.novel.pojo.entity.NovelSubmission">
+        SELECT id, user_novel_id AS userNovelId, user_id AS userId, visibility,
+               book_name AS bookName, author_name AS authorName, category_id AS categoryId,
+               book_desc AS bookDesc, cover_url AS coverUrl, rights_confirmed AS rightsConfirmed, status,
+               public_status AS publicStatus, rejection_reason AS rejectionReason,
+               public_book_id AS publicBookId, reviewed_by AS reviewedBy,
+               submitted_at AS submittedAt, reviewed_at AS reviewedAt
+        FROM novel_submission WHERE user_novel_id = #{novelId} AND user_id = #{userId}
+        LIMIT 1 FOR UPDATE
+    </select>
+    <select id="selectPublications" resultType="com.sdjz.novel.pojo.vo.reader.PrivateNovelVO">
+        SELECT s.user_novel_id AS id, s.id AS submissionId, s.book_name AS bookName,
+               s.author_name AS authorName, s.category_id AS categoryId,
+               s.book_desc AS bookDesc, pb.pic_url AS picUrl, s.rights_confirmed AS rightsConfirmed,
+               n.original_file_name AS originalFileName, n.encoding, n.file_size AS fileSize,
+               COALESCE(n.word_count, pb.word_count) AS wordCount,
+               COALESCE(n.chapter_count, pb.chapter_count) AS chapterCount,
+               n.first_chapter_id AS firstChapterId, s.visibility, s.status AS submissionStatus,
+               s.rejection_reason AS rejectionReason, s.public_book_id AS publicBookId,
+               s.public_status AS publicStatus, s.create_time AS createTime, s.update_time AS updateTime
+        FROM novel_submission s LEFT JOIN user_novel n ON n.id = s.user_novel_id
+        LEFT JOIN book_info pb ON pb.id = s.public_book_id
+        WHERE s.user_id = #{userId} AND s.status = 'APPROVED'
+        ORDER BY s.update_time DESC, s.id DESC
+    </select>
+    <update id="updateSubmissionForResubmit">
+        UPDATE novel_submission SET book_name = #{bookName}, author_name = #{authorName},
+            category_id = #{categoryId}, book_desc = #{bookDesc}, cover_url = #{coverUrl}, rights_confirmed = #{rightsConfirmed},
+            status = 'PENDING', rejection_reason = NULL, reviewed_by = NULL, reviewed_at = NULL,
+            submitted_at = NOW()
+        WHERE id = #{id} AND user_id = #{userId} AND status IN ('REJECTED', 'CANCELLED')
+          AND public_book_id IS NULL
+    </update>
+    <update id="cancelSubmission">
+        UPDATE novel_submission SET status = 'CANCELLED'
+        WHERE user_id = #{userId} AND user_novel_id = #{novelId} AND status = 'PENDING'
+    </update>
+    <update id="cancelSubmissionForDeletedNovel">
+        UPDATE novel_submission SET status = 'CANCELLED'
+        WHERE user_id = #{userId} AND user_novel_id = #{novelId} AND status = 'PENDING'
+    </update>
+
+    <sql id="submissionSelect">
+        SELECT s.id, s.user_novel_id AS userNovelId, s.user_id AS userId,
+               u.username, n.original_file_name AS originalFileName,
+               s.book_name AS bookName, s.author_name AS authorName,
+               s.category_id AS categoryId, c.category_name AS categoryName,
+               s.book_desc AS bookDesc, s.cover_url AS picUrl, s.rights_confirmed AS rightsConfirmed,
+               s.status, s.public_status AS publicStatus, s.rejection_reason AS rejectionReason,
+               s.public_book_id AS publicBookId,
+               COALESCE(n.chapter_count, pb.chapter_count) AS chapterCount,
+               COALESCE(n.word_count, pb.word_count) AS wordCount, s.submitted_at AS submittedAt,
+               s.reviewed_at AS reviewedAt, s.create_time AS createTime, s.update_time AS updateTime
+        FROM novel_submission s
+        JOIN sys_user u ON u.id = s.user_id
+        JOIN book_category c ON c.id = s.category_id
+        LEFT JOIN user_novel n ON n.id = s.user_novel_id
+        LEFT JOIN book_info pb ON pb.id = s.public_book_id
+    </sql>
+    <select id="selectSubmissionPage" resultType="com.sdjz.novel.pojo.vo.reader.AdminSubmissionVO">
+        <include refid="submissionSelect"/>
+        <where><if test="status != null and status != ''">s.status = #{status}</if></where>
+        ORDER BY s.submitted_at DESC, s.id DESC LIMIT #{offset}, #{size}
+    </select>
+    <select id="countSubmissions" resultType="java.lang.Long">
+        SELECT COUNT(*) FROM novel_submission s
+        <where><if test="status != null and status != ''">s.status = #{status}</if></where>
+    </select>
+    <select id="selectAdminSubmission" resultType="com.sdjz.novel.pojo.vo.reader.AdminSubmissionVO">
+        <include refid="submissionSelect"/> WHERE s.id = #{submissionId} LIMIT 1
+    </select>
+    <select id="lockAdminSubmission" resultType="com.sdjz.novel.pojo.vo.reader.AdminSubmissionVO">
+        SELECT s.id, s.user_novel_id AS userNovelId, s.user_id AS userId,
+               s.book_name AS bookName, s.author_name AS authorName,
+               s.category_id AS categoryId, s.book_desc AS bookDesc, s.cover_url AS picUrl,
+               s.rights_confirmed AS rightsConfirmed, s.status,
+               s.public_book_id AS publicBookId,
+               n.chapter_count AS chapterCount, n.word_count AS wordCount
+        FROM novel_submission s LEFT JOIN user_novel n ON n.id = s.user_novel_id
+        WHERE s.id = #{submissionId} LIMIT 1 FOR UPDATE
+    </select>
+    <select id="selectAdminChapters" resultType="com.sdjz.novel.pojo.entity.UserNovelChapter">
+        SELECT c.id, c.novel_id AS novelId, c.chapter_num AS chapterNum,
+               c.chapter_name AS chapterName, c.word_count AS wordCount,
+               c.create_time AS createTime, c.update_time AS updateTime
+        FROM user_novel_chapter c JOIN novel_submission s ON s.user_novel_id = c.novel_id
+        WHERE s.id = #{submissionId} ORDER BY c.chapter_num LIMIT 5000
+    </select>
+    <select id="selectAdminChapter" resultType="com.sdjz.novel.pojo.entity.UserNovelChapter">
+        SELECT c.id, c.novel_id AS novelId, c.chapter_num AS chapterNum,
+               c.chapter_name AS chapterName, c.word_count AS wordCount, c.content,
+               c.create_time AS createTime, c.update_time AS updateTime
+        FROM user_novel_chapter c JOIN novel_submission s ON s.user_novel_id = c.novel_id
+        WHERE s.id = #{submissionId} AND c.id = #{chapterId} LIMIT 1
+    </select>
+    <update id="rejectSubmission">
+        UPDATE novel_submission SET status = 'REJECTED', rejection_reason = #{reason},
+            reviewed_by = #{adminId}, reviewed_at = NOW()
+        WHERE id = #{submissionId} AND status = 'PENDING'
+    </update>
+    <update id="updateSubmissionMetadata">
+        UPDATE novel_submission SET book_name = #{bookName}, author_name = #{authorName},
+            category_id = #{categoryId}, book_desc = #{bookDesc}
+        WHERE id = #{submissionId} AND status = 'PENDING'
+    </update>
+    <insert id="insertBookInfo" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO book_info (book_name, author_name, category_id, book_desc, pic_url, book_status,
+                               word_count, visit_count, chapter_count, status)
+        VALUES (#{bookName}, #{authorName}, #{categoryId}, #{bookDesc}, #{picUrl}, 1,
+                #{wordCount}, 0, #{chapterCount}, 1)
+    </insert>
+    <insert id="copyPublicChapters">
+        INSERT INTO book_chapter (book_id, chapter_num, chapter_name, word_count)
+        SELECT #{bookId}, chapter_num, LEFT(chapter_name, 128), word_count
+        FROM user_novel_chapter WHERE novel_id = #{novelId} ORDER BY chapter_num
+    </insert>
+    <insert id="copyPublicContents">
+        INSERT INTO book_content (chapter_id, content)
+        SELECT bc.id, unc.content FROM user_novel_chapter unc
+        JOIN book_chapter bc ON bc.book_id = #{bookId} AND bc.chapter_num = unc.chapter_num
+        WHERE unc.novel_id = #{novelId}
+    </insert>
+    <update id="updatePublicBookSummary">
+        UPDATE book_info b SET
+          first_chapter_id = (SELECT id FROM book_chapter WHERE book_id = #{bookId} ORDER BY chapter_num LIMIT 1),
+          last_chapter_id = (SELECT id FROM book_chapter WHERE book_id = #{bookId} ORDER BY chapter_num DESC LIMIT 1),
+          last_chapter_name = (SELECT chapter_name FROM book_chapter WHERE book_id = #{bookId} ORDER BY chapter_num DESC LIMIT 1),
+          last_chapter_update_time = NOW(), status = 0
+        WHERE b.id = #{bookId} AND b.status = 1
+    </update>
+    <update id="approveSubmission">
+        UPDATE novel_submission SET status = 'APPROVED', public_status = 'ACTIVE',
+            public_book_id = #{bookId}, reviewed_by = #{adminId}, reviewed_at = NOW(),
+            rejection_reason = NULL
+        WHERE id = #{submissionId} AND status = 'PENDING' AND public_book_id IS NULL
+    </update>
+    <update id="takeDownPublication">
+        UPDATE book_info SET status = 1, update_time = NOW() WHERE id = #{bookId} AND status = 0
+    </update>
+    <update id="setSubmissionPublicStatus">
+        UPDATE novel_submission SET public_status = #{publicStatus}
+        WHERE public_book_id = #{bookId} AND status = 'APPROVED' AND public_status = 'ACTIVE'
+    </update>
+    <select id="countPendingWithdrawal" resultType="int">
+        SELECT COUNT(*) FROM novel_withdrawal_request
+        WHERE user_id = #{userId} AND public_book_id = #{bookId} AND status = 'PENDING'
+    </select>
+    <select id="lockActivePublication" resultType="com.sdjz.novel.pojo.entity.NovelSubmission">
+        SELECT id, user_novel_id AS userNovelId, user_id AS userId,
+               public_book_id AS publicBookId, status, public_status AS publicStatus
+        FROM novel_submission
+        WHERE user_id = #{userId} AND public_book_id = #{bookId}
+          AND status = 'APPROVED' AND public_status = 'ACTIVE'
+        LIMIT 1 FOR UPDATE
+    </select>
+    <select id="lockPublicBook" resultType="java.lang.Integer">
+        SELECT status FROM book_info WHERE id = #{bookId} FOR UPDATE
+    </select>
+    <sql id="withdrawalSelect">
+        SELECT w.id, w.user_novel_id AS userNovelId, w.public_book_id AS publicBookId,
+               w.user_id AS userId, u.username, b.book_name AS bookName,
+               w.reason, w.status, w.create_time AS createTime, w.reviewed_at AS reviewedAt
+        FROM novel_withdrawal_request w JOIN sys_user u ON u.id = w.user_id
+        JOIN book_info b ON b.id = w.public_book_id
+    </sql>
+    <select id="selectWithdrawalPage" resultType="com.sdjz.novel.pojo.vo.reader.WithdrawalRequestVO">
+        <include refid="withdrawalSelect"/>
+        <where><if test="status != null and status != ''">w.status = #{status}</if></where>
+        ORDER BY w.create_time DESC, w.id DESC LIMIT #{offset}, #{size}
+    </select>
+    <select id="countWithdrawals" resultType="java.lang.Long">
+        SELECT COUNT(*) FROM novel_withdrawal_request w
+        <where><if test="status != null and status != ''">w.status = #{status}</if></where>
+    </select>
+    <select id="selectWithdrawal" resultType="com.sdjz.novel.pojo.vo.reader.WithdrawalRequestVO">
+        <include refid="withdrawalSelect"/> WHERE w.id = #{requestId} LIMIT 1
+    </select>
+    <select id="lockWithdrawal" resultType="com.sdjz.novel.pojo.vo.reader.WithdrawalRequestVO">
+        <include refid="withdrawalSelect"/> WHERE w.id = #{requestId} LIMIT 1 FOR UPDATE
+    </select>
+    <insert id="insertWithdrawal">
+        INSERT INTO novel_withdrawal_request (user_novel_id, public_book_id, user_id, reason)
+        VALUES (#{novelId}, #{bookId}, #{userId}, #{reason})
+    </insert>
+    <update id="approveWithdrawal">
+        UPDATE novel_withdrawal_request SET status = 'APPROVED', reviewed_by = #{adminId}, reviewed_at = NOW()
+        WHERE id = #{requestId} AND status = 'PENDING'
+    </update>
+    <update id="rejectWithdrawal">
+        UPDATE novel_withdrawal_request SET status = 'REJECTED', reviewed_by = #{adminId},
+            reviewed_at = NOW()
+        WHERE id = #{requestId} AND status = 'PENDING'
+    </update>
+    <update id="closePendingWithdrawals">
+        UPDATE novel_withdrawal_request SET status = 'CLOSED', reviewed_by = #{adminId}, reviewed_at = NOW()
+        WHERE public_book_id = #{bookId} AND status = 'PENDING'
+    </update>
+    <insert id="insertAudit">
+        INSERT INTO admin_audit_log (admin_id, target_type, target_id, action, reason)
+        VALUES (#{adminId}, #{targetType}, #{targetId}, #{action}, #{reason})
+    </insert>
+    <select id="selectAuditPage" resultType="com.sdjz.novel.pojo.vo.reader.AdminAuditLogVO">
+        SELECT l.id, l.admin_id AS adminId, a.username AS adminUsername,
+               l.target_type AS targetType, l.target_id AS targetId,
+               l.action, l.reason, l.create_time AS createTime
+        FROM admin_audit_log l JOIN admin_user a ON a.id = l.admin_id
+        ORDER BY l.create_time DESC, l.id DESC LIMIT #{offset}, #{size}
+    </select>
+    <select id="countAudit" resultType="java.lang.Long">
+        SELECT COUNT(*) FROM admin_audit_log
+    </select>
+</mapper>

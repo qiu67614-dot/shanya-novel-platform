@@ -1,0 +1,28 @@
+server:
+  address: 127.0.0.1
+  port: 8080
+
+spring:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: ${NOVEL_DB_URL}
+    username: ${NOVEL_DB_USERNAME}
+    password: ${NOVEL_DB_PASSWORD}
+  data:
+    redis:
+      host: ${NOVEL_REDIS_HOST:127.0.0.1}
+      port: ${NOVEL_REDIS_PORT:6379}
+      password: ${NOVEL_REDIS_PASSWORD}
+      database: 0
+      timeout: 3000ms
+
+mybatis-plus:
+  configuration:
+    log-impl: org.apache.ibatis.logging.nologging.NoLoggingImpl
+
+jwt:
+  secret: ${NOVEL_JWT_SECRET}
+
+admin:
+  jwt:
+    secret: ${NOVEL_ADMIN_JWT_SECRET}

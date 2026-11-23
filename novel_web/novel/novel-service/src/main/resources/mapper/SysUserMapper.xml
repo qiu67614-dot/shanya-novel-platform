@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sdjz.novel.mapper.SysUserMapper">
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO sys_user (username,password,nick_name,balance,status,create_time,update_time)
+        VALUES(#{username},#{password},#{nickName},0,0,now(),now())
+    </insert>
+
+    <select id="selectByUsername" resultType="com.sdjz.novel.pojo.entity.SysUser">
+        select * from sys_user where username = #{username}
+    </select>
+    <select id="selectById" resultType="com.sdjz.novel.pojo.vo.user.UserInfoVO">
+        select id, username, password, nick_name,
+               user_photo, user_sex, user_birthday,
+               user_phone, user_email,
+               balance, status, create_time,
+               update_time
+                from sys_user
+        WHERE id = #{id}
+    </select>
+
+
+</mapper>

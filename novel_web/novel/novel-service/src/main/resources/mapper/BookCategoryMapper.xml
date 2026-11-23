@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.sdjz.novel.mapper.BookCategoryMapper">
+
+    <select id="selectEnabledCategories" resultType="com.sdjz.novel.pojo.vo.reader.CategoryVO">
+        SELECT
+        id,
+        category_name AS categoryName,
+        direction,
+        sort,
+        status,
+        create_time AS createTime,
+        update_time AS updateTime
+        FROM book_category
+        WHERE status = 0
+        <if test="direction != null">
+            AND direction = #{direction}
+        </if>
+        ORDER BY sort ASC, id ASC
+    </select>
+
+</mapper>
