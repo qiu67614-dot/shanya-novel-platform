@@ -22,6 +22,9 @@ public class ChapterServiceImpl implements ChapterService {
 
     private static final Duration CHAPTER_TTL = Duration.ofMinutes(5);
     private static final TypeReference<ChapterContentVO> CHAPTER_TYPE = new TypeReference<>() {};
+    /** 单次目录查询的条数上限，防止一个请求拉走整本书的全部章节 */
+    private static final int MAX_PAGE_SIZE = 200;
+    private static final int DEFAULT_PAGE_SIZE = 20;
 
     private final ChapterMapper chapterMapper;
     private final BookMapper bookMapper;
@@ -34,9 +37,10 @@ public class ChapterServiceImpl implements ChapterService {
             throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "作品不存在");
         }
 
-        // 分页参数修正，目录支持大数量查询但设置上限
+        // 分页参数修正：目录需要支持整本翻页，但单次请求必须有上限，
+        // 否则一个 size=10000 的请求就能吃掉一条连接和一大块堆内存
         page = page < 1 ? 1 : page;
-        size = size < 1 ? 20 : Math.min(size, 10000);
+        size = size < 1 ? DEFAULT_PAGE_SIZE : Math.min(size, MAX_PAGE_SIZE);
 
         int offset = (page - 1) * size;
         List<ChapterSummaryVO> list = chapterMapper.selectChapterPage(bookId, offset, size);
@@ -47,10 +51,12 @@ public class ChapterServiceImpl implements ChapterService {
 
     @Override
     public ChapterContentVO getChapterContent(Long chapterId) {
+        // 缓存命中时直接返回，不再补一次 selectBookById：
+        // selectChapterContent 的 SQL 已 JOIN book_info 并带 status = 0 过滤，
+        // 书籍下线或删除时缓存随 TTL（5 分钟）失效即可，无需每次读都多打一次库。
         ChapterContentVO content = readerCache.getOrLoad("chapter:" + chapterId, CHAPTER_TYPE, CHAPTER_TTL,
                 () -> loadChapterContent(chapterId));
-        if (content == null || content.getBook() == null
-                || bookMapper.selectBookById(content.getBook().getId()) == null) {
+        if (content == null || content.getBook() == null) {
             throw new BusinessException(ErrorCode.RESOURCE_NOT_FOUND, "章节不存在");
         }
         return content;
