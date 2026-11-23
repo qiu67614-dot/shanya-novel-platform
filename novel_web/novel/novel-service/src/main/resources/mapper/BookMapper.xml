@@ -50,7 +50,10 @@
         LIMIT 10
     </select>
 
-    <!-- 搜索/筛选分页查询 -->
+    <!-- 搜索/筛选分页查询
+         注意：前后模糊（%q%）用不上 B+ 树索引，等于对 book_info 做全表扫描。
+         当前数据量（千级以内）完全够用，贸然改成前缀匹配会丢失「搜关键词中间部分」的能力。
+         数据量到十万级时按 docs/search-fulltext-migration.mysql.sql 改成 FULLTEXT ngram。 -->
     <select id="selectBookPage" resultType="com.sdjz.novel.pojo.vo.reader.BookSummaryVO">
         <include refid="baseBookSelect"/>
         <if test="query.q != null and query.q != ''">
@@ -100,10 +103,17 @@
     </select>
 
     <!-- 原子增加点击量（数据库层面自增，避免并发丢失） -->
+    <!--
+        阅读量自增。
+        注意 `update_time = update_time` 不是冗余写法：book_info.update_time 的定义是
+        `ON UPDATE CURRENT_TIMESTAMP`，只要执行 UPDATE 就会被自动改成当前时间。
+        一次阅读并不代表「这本书被修改过」，所以显式把自己赋给自己，把自动更新顶掉。
+        顺带还能避免每次访问都写一遍该列。
+    -->
     <update id="increaseVisit">
         UPDATE book_info
         SET visit_count = visit_count + 1,
-        update_time = NOW()
+        update_time = update_time
         WHERE id = #{bookId}
         AND status = 0
     </update>
@@ -111,7 +121,7 @@
     <update id="increaseVisitBy">
         UPDATE book_info
         SET visit_count = visit_count + #{delta},
-        update_time = NOW()
+        update_time = update_time
         WHERE id = #{bookId}
         AND status = 0
     </update>
