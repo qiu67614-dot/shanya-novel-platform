@@ -1,6 +1,22 @@
 server:
   address: 127.0.0.1
   port: 8080
+  # 线程数不再用默认的 200：Hikari 只有 20 个连接，
+  # 200 个线程抢 20 个连接只会把线程全部钉在 getConnection() 上。
+  # 经验比例：线程数 ≈ 连接数 × 2~4，缓存命中的读请求不占连接。
+  tomcat:
+    threads:
+      max: 80
+      min-spare: 10
+    accept-count: 100
+    max-connections: 1000
+    # 默认 60s 过长，慢连接（含 slowloris）会一直占着线程
+    connection-timeout: 5s
+  # 章节正文与列表都是 JSON，压缩对小说的长文本收益明显
+  compression:
+    enabled: true
+    mime-types: application/json,text/html,text/css,application/javascript
+    min-response-size: 1024
 
 spring:
   datasource:
@@ -8,6 +24,18 @@ spring:
     url: ${NOVEL_DB_URL}
     username: ${NOVEL_DB_USERNAME}
     password: ${NOVEL_DB_PASSWORD}
+    hikari:
+      maximum-pool-size: 20
+      # 固定池大小，避免运行期扩缩容带来的抖动
+      minimum-idle: 20
+      # 默认 30s 太长：连接池满时线程会被钉死 30 秒，而 Nginx 只等 15 秒
+      connection-timeout: 3000
+      validation-timeout: 1000
+      idle-timeout: 600000
+      # 必须小于 MySQL 的 wait_timeout，否则会拿到已被服务端关闭的连接
+      max-lifetime: 1800000
+      # 超过 10s 未归还连接就打警告，用于发现连接泄漏
+      leak-detection-threshold: 10000
   data:
     redis:
       host: ${NOVEL_REDIS_HOST:127.0.0.1}
@@ -19,6 +47,21 @@ spring:
 mybatis-plus:
   configuration:
     log-impl: org.apache.ibatis.logging.nologging.NoLoggingImpl
+    # 单条 SQL 10s 超时：慢查询快速失败并归还连接，而不是一直占着
+    default-statement-timeout: 10
+
+# 只暴露健康检查，不开放 metrics / env / heapdump 等敏感端点。
+# Nginx 会把 /api/ 前缀剥掉后转发，因此实际路径是 /actuator/health。
+# 需要观测连接池指标时，临时把 include 改成 health,metrics，看完立刻改回。
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      # 不向匿名调用方暴露数据库、Redis 等组件细节
+      show-details: never
 
 jwt:
   secret: ${NOVEL_JWT_SECRET}

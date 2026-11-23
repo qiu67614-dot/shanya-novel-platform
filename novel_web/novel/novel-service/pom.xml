@@ -55,10 +55,10 @@
             <artifactId>hutool-captcha</artifactId>
             <version>5.8.26</version>
         </dependency>
+        <!-- 健康检查与连接池/线程池指标，仅暴露 health 端点（见 application-prod.yml） -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-test</artifactId>
-            <scope>test</scope>
+            <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
