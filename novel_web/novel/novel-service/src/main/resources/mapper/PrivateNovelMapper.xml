@@ -30,10 +30,12 @@
                 #{fileSize}, #{wordCount}, #{chapterCount})
     </insert>
 
-    <insert id="insertChapter" parameterType="com.sdjz.novel.pojo.entity.UserNovelChapter"
-            useGeneratedKeys="true" keyProperty="id">
+    <insert id="insertChapters" useGeneratedKeys="true" keyProperty="id">
         INSERT INTO user_novel_chapter (novel_id, chapter_num, chapter_name, content, word_count)
-        VALUES (#{novelId}, #{chapterNum}, #{chapterName}, #{content}, #{wordCount})
+        VALUES
+        <foreach collection="list" item="c" separator=",">
+            (#{c.novelId}, #{c.chapterNum}, #{c.chapterName}, #{c.content}, #{c.wordCount})
+        </foreach>
     </insert>
 
     <update id="setFirstChapter">

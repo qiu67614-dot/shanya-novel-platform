@@ -6,13 +6,17 @@ import com.sdjz.novel.pojo.dto.reader.PrivateProgressDTO;
 import com.sdjz.novel.pojo.vo.reader.PrivateNovelVO;
 import com.sdjz.novel.pojo.dto.reader.PrivateImportDTO;
 import com.sdjz.novel.pojo.entity.UserNovel;
+import com.sdjz.novel.pojo.entity.UserNovelChapter;
 import com.sdjz.novel.service.PublicationService;
 import com.sdjz.novel.service.imports.PrivateNovelTextParser;
 import com.sdjz.novel.service.storage.OssCoverStorage;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
 
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -22,7 +26,10 @@ class PrivateNovelServiceImplTest {
     private final PrivateNovelMapper mapper = mock(PrivateNovelMapper.class);
     private final PublicationService publicationService = mock(PublicationService.class);
     private final OssCoverStorage coverStorage = mock(OssCoverStorage.class);
-    private final PrivateNovelServiceImpl service = new PrivateNovelServiceImpl(mapper, new PrivateNovelTextParser(), publicationService, coverStorage);
+    private final TransactionTemplate transactionTemplate =
+            new TransactionTemplate(mock(PlatformTransactionManager.class));
+    private final PrivateNovelServiceImpl service = new PrivateNovelServiceImpl(mapper,
+            new PrivateNovelTextParser(), publicationService, coverStorage, transactionTemplate);
 
     @Test
     void publicImportCarriesUploadedCoverIntoSubmission() {
@@ -38,6 +45,12 @@ class PrivateNovelServiceImplTest {
         when(coverStorage.upload(cover)).thenReturn("https://example.com/covers/cover.jpg");
         doAnswer(invocation -> { invocation.getArgument(0, UserNovel.class).setId(9L); return 1; })
                 .when(mapper).insertNovel(any());
+        // 批量插入后主键回填，第一批的第一个就是首章
+        when(mapper.insertChapters(anyList())).thenAnswer(invocation -> {
+            List<UserNovelChapter> batch = invocation.getArgument(0);
+            batch.get(0).setId(100L);
+            return batch.size();
+        });
         when(mapper.selectNovel(1L, 9L)).thenReturn(new PrivateNovelVO());
 
         service.importTxt(1L, txt, options, cover);
@@ -45,6 +58,8 @@ class PrivateNovelServiceImplTest {
         var novel = org.mockito.ArgumentCaptor.forClass(UserNovel.class);
         verify(mapper).insertNovel(novel.capture());
         assertEquals("https://example.com/covers/cover.jpg", novel.getValue().getCoverUrl());
+        verify(mapper).insertChapters(anyList());
+        verify(mapper).setFirstChapter(9L, 100L);
         verify(publicationService).createSubmission(1L, 9L, options, novel.getValue().getCoverUrl());
     }
 

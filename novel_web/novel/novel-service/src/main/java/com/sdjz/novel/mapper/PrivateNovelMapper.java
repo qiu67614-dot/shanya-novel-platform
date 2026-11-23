@@ -15,7 +15,15 @@ public interface PrivateNovelMapper {
     int updateCover(@Param("userId") Long userId, @Param("novelId") Long novelId,
                     @Param("coverUrl") String coverUrl);
     int insertNovel(UserNovel novel);
-    int insertChapter(UserNovelChapter chapter);
+
+    /**
+     * 批量插入章节，一条 INSERT 写多行。
+     *
+     * <p>配合 {@code useGeneratedKeys}，插入后每个元素的主键会回填到自己的 id 上，
+     * 所以第一批的第一个元素就能拿来当 firstChapterId。
+     */
+    int insertChapters(@Param("list") List<UserNovelChapter> chapters);
+
     int setFirstChapter(@Param("novelId") Long novelId, @Param("chapterId") Long chapterId);
 
     List<PrivateNovelVO> selectPage(@Param("userId") Long userId,

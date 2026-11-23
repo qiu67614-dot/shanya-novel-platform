@@ -123,7 +123,7 @@ class PublicationServiceTest {
         order.verify(privateMapper).updateNovelMeta(eq(1L), eq(7L), anyString(), anyString(),
                 anyString(), anyLong(), anyLong(), anyInt(), isNull());
         order.verify(privateMapper).deleteChapters(1L, 7L);
-        order.verify(privateMapper, atLeastOnce()).insertChapter(any());
+        order.verify(privateMapper).insertChapters(anyList());
     }
 
     @Test

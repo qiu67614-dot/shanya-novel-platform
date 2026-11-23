@@ -2,6 +2,7 @@ package com.sdjz.novel.service.imp;
 
 import com.sdjz.novel.common.exception.BusinessException;
 import com.sdjz.novel.common.exception.ErrorCode;
+import com.sdjz.novel.common.util.Batches;
 import com.sdjz.novel.mapper.PrivateNovelMapper;
 import com.sdjz.novel.pojo.dto.reader.PrivateProgressDTO;
 import com.sdjz.novel.pojo.dto.reader.PrivateImportDTO;
@@ -21,9 +22,11 @@ import com.sdjz.novel.service.storage.OssCoverStorage;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 
 @Service
@@ -33,21 +36,33 @@ public class PrivateNovelServiceImpl implements PrivateNovelService {
     private final PrivateNovelTextParser parser;
     private final PublicationService publicationService;
     private final OssCoverStorage coverStorage;
+    private final TransactionTemplate transactionTemplate;
 
     @Override
-    @Transactional
     public PrivateNovelVO importTxt(Long userId, MultipartFile file) {
         return importTxt(userId, file, new PrivateImportDTO());
     }
 
     @Override
-    @Transactional
     public PrivateNovelVO importTxt(Long userId, MultipartFile file, PrivateImportDTO options) {
         return importTxt(userId, file, options, null);
     }
 
+    /**
+     * TXT 导入。
+     *
+     * <p>这里<b>刻意不加 @Transactional</b>。原来整个方法被一个事务包住，
+     * 20 MB 文本解析、OSS 封面上传、最多 5000 条章节插入全在同一个事务里：
+     * <ul>
+     *   <li>OSS 上传是一次外部 HTTP 调用，慢起来几秒，期间数据库连接一直被占着；</li>
+     *   <li>Hikari 的 connection-timeout 是 3 秒，并发导入时后面的请求直接拿不到连接；</li>
+     *   <li>解析失败要做的是「不写库」，而不是「回滚」，本来就不需要事务。</li>
+     * </ul>
+     * 现在只有真正落库的那一段进事务（{@link TransactionTemplate}），
+     * 并且用编程式事务而不是 @Transactional —— 因为同类内部调用不会走代理，
+     * 拆成私有方法加注解是无效的。
+     */
     @Override
-    @Transactional
     public PrivateNovelVO importTxt(Long userId, MultipartFile file, PrivateImportDTO options, MultipartFile cover) {
         PrivateImportDTO request = options == null ? new PrivateImportDTO() : options;
         String visibility = request.getVisibility() == null ? "PRIVATE" : request.getVisibility();
@@ -70,9 +85,19 @@ public class PrivateNovelServiceImpl implements PrivateNovelService {
         } catch (IOException e) {
             throw new BusinessException("B0000", "读取上传文件失败");
         }
+
+        // 解析与上传都在事务外：失败了什么都还没写，不需要回滚
         ParsedNovel parsed = parser.parse(file.getOriginalFilename(), bytes);
         String coverUrl = coverStorage.upload(cover);
 
+        Long novelId = transactionTemplate.execute(status ->
+                persistNovel(userId, parsed, request, visibility, coverUrl));
+        return getNovel(userId, novelId);
+    }
+
+    /** 只在事务内被调用：主表 + 章节 + 投稿记录，要么全成要么全不成。 */
+    private Long persistNovel(Long userId, ParsedNovel parsed, PrivateImportDTO request,
+                              String visibility, String coverUrl) {
         UserNovel novel = new UserNovel();
         novel.setUserId(userId);
         novel.setBookName(parsed.bookName());
@@ -84,19 +109,47 @@ public class PrivateNovelServiceImpl implements PrivateNovelService {
         novel.setChapterCount(parsed.chapters().size());
         mapper.insertNovel(novel);
 
+        writeChapters(novel.getId(), parsed.chapters());
+        if ("PUBLIC".equals(visibility)) {
+            publicationService.createSubmission(userId, novel.getId(), request, coverUrl);
+        }
+        return novel.getId();
+    }
+
+    /**
+     * 分批写章节：5000 章从 5000 次往返降到 10 次左右。
+     *
+     * <p>切批规则见 {@link Batches#split(List, java.util.function.ToLongFunction)}：
+     * 每批最多 500 条、正文累计不超过 2 MB，两者任一触顶就换下一批。
+     */
+    private void writeChapters(Long novelId, List<ParsedChapter> parsedChapters) {
+        List<UserNovelChapter> chapters = new ArrayList<>(parsedChapters.size());
         int chapterNum = 1;
-        for (ParsedChapter parsedChapter : parsed.chapters()) {
+        for (ParsedChapter parsedChapter : parsedChapters) {
             UserNovelChapter chapter = new UserNovelChapter();
-            chapter.setNovelId(novel.getId());
+            chapter.setNovelId(novelId);
             chapter.setChapterNum(chapterNum++);
             chapter.setChapterName(parsedChapter.name());
             chapter.setContent(parsedChapter.content());
             chapter.setWordCount(parsedChapter.wordCount());
-            mapper.insertChapter(chapter);
-            if (chapterNum == 2) mapper.setFirstChapter(novel.getId(), chapter.getId());
+            chapters.add(chapter);
         }
-        if ("PUBLIC".equals(visibility)) publicationService.createSubmission(userId, novel.getId(), request, coverUrl);
-        return getNovel(userId, novel.getId());
+
+        Long firstChapterId = null;
+        for (List<UserNovelChapter> batch : Batches.split(chapters, PrivateNovelServiceImpl::contentBytes)) {
+            mapper.insertChapters(batch);
+            // 主键已由 useGeneratedKeys 回填，第一张取第一个即可
+            if (firstChapterId == null && !batch.isEmpty()) {
+                firstChapterId = batch.get(0).getId();
+            }
+        }
+        if (firstChapterId != null) {
+            mapper.setFirstChapter(novelId, firstChapterId);
+        }
+    }
+
+    static long contentBytes(UserNovelChapter chapter) {
+        return chapter.getContent() == null ? 0 : chapter.getContent().length();
     }
 
     @Override

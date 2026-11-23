@@ -5,6 +5,7 @@ import com.sdjz.novel.common.cache.CacheKeys;
 import com.sdjz.novel.common.exception.BusinessException;
 import com.sdjz.novel.common.exception.ErrorCode;
 import com.sdjz.novel.common.util.AdminJwtUtil;
+import com.sdjz.novel.common.util.Batches;
 import com.sdjz.novel.mapper.PrivateNovelMapper;
 import com.sdjz.novel.mapper.PublicationMapper;
 import com.sdjz.novel.pojo.dto.reader.AdminDecisionDTO;
@@ -35,6 +36,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
@@ -134,7 +136,7 @@ public class PublicationService implements ApplicationRunner {
             privateMapper.updateNovelMeta(userId, novelId, parsed.bookName(), parsed.originalFileName(),
                     parsed.encoding(), parsed.fileSize(), parsed.wordCount(), parsed.chapters().size(), null);
             privateMapper.deleteChapters(userId, novelId);
-            Long firstChapterId = null;
+            List<UserNovelChapter> chapters = new ArrayList<>(parsed.chapters().size());
             int chapterNum = 1;
             for (ParsedChapter parsedChapter : parsed.chapters()) {
                 UserNovelChapter chapter = new UserNovelChapter();
@@ -143,8 +145,15 @@ public class PublicationService implements ApplicationRunner {
                 chapter.setChapterName(parsedChapter.name());
                 chapter.setContent(parsedChapter.content());
                 chapter.setWordCount(parsedChapter.wordCount());
-                privateMapper.insertChapter(chapter);
-                if (firstChapterId == null) firstChapterId = chapter.getId();
+                chapters.add(chapter);
+            }
+            Long firstChapterId = null;
+            for (List<UserNovelChapter> batch : Batches.split(chapters,
+                    c -> c.getContent() == null ? 0 : c.getContent().length())) {
+                privateMapper.insertChapters(batch);
+                if (firstChapterId == null && !batch.isEmpty()) {
+                    firstChapterId = batch.get(0).getId();
+                }
             }
             privateMapper.setFirstChapter(novelId, firstChapterId);
         } else if (file != null) {
