@@ -48,25 +48,46 @@ const queryString = (params) => {
   return values.length ? `?${values.map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`).join('&')}` : ''
 }
 
-export function request(path, { method = 'GET', data, params, auth = false } = {}) {
-  if (auth && !getToken()) return Promise.reject(new Error('请先登录'))
-  return new Promise((resolve, reject) => {
-    uni.request({
-      url: `${baseUrl()}${path}${queryString(params)}`,
-      method,
-      data,
-      timeout: 20000,
-      header: { 'Content-Type': 'application/json', ...(getToken() ? { Authorization: getToken() } : {}) },
-      success: (response) => {
-        const body = response.data
-        if (!body || body.code !== '00000') {
-          if (body?.code === 'A0230') clearSession()
-          reject(new Error(body?.message || `请求失败 (${response.statusCode})`))
-        } else resolve(body.data)
-      },
-      fail: (error) => reject(new Error(error.errMsg || '连接服务器失败')),
-    })
+/** 只有幂等请求才自动重试：给 POST 重试会重复提交评论、导入 */
+const IDEMPOTENT_METHODS = ['GET', 'HEAD', 'OPTIONS']
+const MAX_RETRY_AFTER_SECONDS = 5
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
+const retryAfterSeconds = (header = {}) => {
+  const raw = Number(header['retry-after'] ?? header['Retry-After'])
+  return Number.isFinite(raw) && raw > 0 ? Math.min(raw, MAX_RETRY_AFTER_SECONDS) : 1
+}
+
+const send = (path, { method, data, params }) => new Promise((resolve, reject) => {
+  uni.request({
+    url: `${baseUrl()}${path}${queryString(params)}`,
+    method,
+    data,
+    timeout: 20000,
+    header: { 'Content-Type': 'application/json', ...(getToken() ? { Authorization: getToken() } : {}) },
+    success: resolve,
+    fail: (error) => reject(new Error(error.errMsg || '连接服务器失败')),
   })
+})
+
+export async function request(path, options = {}) {
+  const { method = 'GET', data, params, auth = false } = options
+  if (auth && !getToken()) throw new Error('请先登录')
+
+  for (let attempt = 0; ; attempt += 1) {
+    const response = await send(path, { method, data, params })
+    const body = response.data
+    if (body && body.code === '00000') return body.data
+    if (body?.code === 'A0230') clearSession()
+    // 429：后端限流。GET 按 Retry-After 退避重试一次，写操作直接提示，避免重复提交
+    if (response.statusCode === 429
+      && attempt === 0
+      && IDEMPOTENT_METHODS.includes(String(method).toUpperCase())) {
+      await sleep(retryAfterSeconds(response.header) * 1000)
+      continue
+    }
+    throw new Error(body?.message || `请求失败 (${response.statusCode})`)
+  }
 }
 
 export function uploadTxt(filePath, fields, onProgress, path = '/front/me/imports', coverPath = '') {

@@ -2,6 +2,7 @@ package com.sdjz.novel.controller.auth;
 
 import cn.hutool.captcha.CaptchaUtil;
 import cn.hutool.captcha.LineCaptcha;
+import com.sdjz.novel.common.exception.ServiceUnavailableException;
 import com.sdjz.novel.common.ratelimit.RateLimit;
 import com.sdjz.novel.common.ratelimit.RateLimitDimension;
 import com.sdjz.novel.common.ratelimit.RateLimitGroup;
@@ -81,7 +82,14 @@ public class FrontUserController {
         String sessionId = UUID.randomUUID().toString().replace("-", "");
 
         // 验证码存入Redis，5分钟过期
-        redisUtil.set(CAPTCHA_KEY_PREFIX + sessionId, code, CAPTCHA_EXPIRE_MINUTE, TimeUnit.MINUTES);
+        // 写入失败必须返回 503：拿不到 captchaKey 的话，前端后面的注册请求必然失败，
+        // 但用户只会看到「验证码错误」，反复重试也没用
+        try {
+            redisUtil.set(CAPTCHA_KEY_PREFIX + sessionId, code, CAPTCHA_EXPIRE_MINUTE, TimeUnit.MINUTES);
+        } catch (RuntimeException e) {
+            log.error("验证码写入 Redis 失败", e);
+            throw new ServiceUnavailableException("验证码服务暂不可用，请稍后重试", e);
+        }
 
         // 输出base64，不要 data:image/png;base64, 前缀（前端文档约定）
         try (ByteArrayOutputStream bos = new ByteArrayOutputStream()) {

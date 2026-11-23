@@ -62,6 +62,12 @@ management:
     health:
       # 不向匿名调用方暴露数据库、Redis 等组件细节
       show-details: never
+      # 开启 liveness / readiness 分组：
+      # /health          → 全量探针，Redis 挂了这里会 DOWN，给人看
+      # /health/readiness → 只看应用是否准备好接流量，负载均衡应指向它，
+      #                     否则 Redis 抖动一次，整个节点会被摘掉（读接口其实还能靠数据库降级）
+      probes:
+        enabled: true
 
 jwt:
   secret: ${NOVEL_JWT_SECRET}

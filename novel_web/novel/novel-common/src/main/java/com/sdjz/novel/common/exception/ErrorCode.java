@@ -22,5 +22,7 @@ public class ErrorCode {
     public static final String TOO_MANY_REQUESTS = "A0429";
     /** 账号因连续登录失败被临时锁定 */
     public static final String LOGIN_LOCKED = "A0429_LOCK";
+    /** 依赖的中间件暂不可用（对应 HTTP 503） */
+    public static final String SERVICE_UNAVAILABLE = "A0503";
 
 }

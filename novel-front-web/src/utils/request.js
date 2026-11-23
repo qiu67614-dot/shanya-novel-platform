@@ -10,6 +10,16 @@ const request = axios.create({
   headers: { 'X-Requested-With': 'XMLHttpRequest' },
 })
 
+/** 只有幂等请求才自动重试：给 POST 重试会重复提交评论、点赞 */
+const IDEMPOTENT_METHODS = ['get', 'head', 'options']
+const MAX_RETRY_AFTER_SECONDS = 5
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
+const retryAfterSeconds = (headers = {}) => {
+  const raw = Number(headers['retry-after'] ?? headers['Retry-After'])
+  return Number.isFinite(raw) && raw > 0 ? Math.min(raw, MAX_RETRY_AFTER_SECONDS) : 1
+}
+
 request.interceptors.request.use((config) => {
   const token = getToken()
   if (token) config.headers.Authorization = token
@@ -28,11 +38,27 @@ request.interceptors.response.use((response) => {
     return Promise.reject(body)
   }
   return body
-}, (error) => {
-  if (error.response?.status === 401) {
+}, async (error) => {
+  const status = error.response?.status
+  const config = error.config
+
+  if (status === 401) {
     clearAuth()
     router.push({ name: 'login' })
   }
+
+  if (status === 429) {
+    const retryAfter = retryAfterSeconds(error.response?.headers)
+    const method = (config?.method || 'get').toLowerCase()
+    if (config && !config.__rateLimitRetried && IDEMPOTENT_METHODS.includes(method)) {
+      config.__rateLimitRetried = true
+      await sleep(retryAfter * 1000)
+      return request(config)
+    }
+    ElMessage.warning(error.response?.data?.message || `操作过于频繁，请 ${retryAfter} 秒后重试`)
+    return Promise.reject(error)
+  }
+
   ElMessage.error(error.response?.data?.message || '网络异常，请稍后再试')
   return Promise.reject(error)
 })
