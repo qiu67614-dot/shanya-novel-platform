@@ -21,6 +21,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import com.sdjz.novel.pojo.vo.user.UserSummaryVO;
 
+import java.util.concurrent.TimeUnit;
+
 @Service
 @Slf4j
 @RequiredArgsConstructor
@@ -37,6 +39,18 @@ public class SysUserServiceImpl implements SysUserService {
     private  BCryptPasswordEncoder passwordEncoder;
 
     private static final String CAPTCHA_PREFIX = "captcha:";
+
+    /**
+     * 登录失败计数：按<b>用户名</b>计，不按 IP。
+     *
+     * <p>按 IP 计的话，一个宿舍共用出口时，某个人输错密码会连累全宿舍被锁；
+     * 按用户名计才锁得准。IP 维度的粗保护已经由 Nginx 和全局闸门负责。
+     */
+    private static final String LOGIN_FAIL_PREFIX = "login:fail:";
+    /** 连续失败多少次锁定。 */
+    private static final int LOGIN_FAIL_LIMIT = 5;
+    /** 锁定时长（分钟）。 */
+    private static final int LOGIN_LOCK_MINUTES = 15;
 
 
 
@@ -77,18 +91,39 @@ public class SysUserServiceImpl implements SysUserService {
 
     @Override
     public UserLoginVO login(UserLoginDTO dto) {
+        String failKey = LOGIN_FAIL_PREFIX + dto.getUsername();
+
+        // 先判断是否已被锁定，再查库和跑 BCrypt。
+        // BCrypt 是刻意设计的慢哈希（约 100ms/次），锁定期内继续校验等于免费帮攻击者
+        // 消耗 CPU —— 这一步是「撞库防护」里最容易漏掉的成本控制。
+        String failCount = redisUtil.get(failKey);
+        if (failCount != null && parseCount(failCount) >= LOGIN_FAIL_LIMIT) {
+            long remainSeconds = redisUtil.getExpireSeconds(failKey);
+            long remainMinutes = Math.max(1, (remainSeconds + 59) / 60);
+            throw new BusinessException(ErrorCode.LOGIN_LOCKED,
+                    "密码错误次数过多，请 " + remainMinutes + " 分钟后再试");
+        }
+
         SysUser user = sysUserMapper.selectByUsername(dto.getUsername());
-        if(user == null){
-            throw new BusinessException(ErrorCode.LOGIN_ERROR,"用户不存在");
+        // 「用户不存在」与「密码错误」统一文案：分别提示等于把用户名是否存在告诉攻击者，
+        // 是典型的用户名枚举漏洞
+        if (user == null) {
+            recordLoginFail(failKey, dto.getUsername());
+            throw new BusinessException(ErrorCode.LOGIN_ERROR, "用户名或密码错误");
         }
         //校验密码
-        if(!passwordEncoder.matches(dto.getPassword(), user.getPassword())){
-            throw new BusinessException(ErrorCode.LOGIN_ERROR,"用户名或密码错误");
+        if (!passwordEncoder.matches(dto.getPassword(), user.getPassword())) {
+            recordLoginFail(failKey, dto.getUsername());
+            throw new BusinessException(ErrorCode.LOGIN_ERROR, "用户名或密码错误");
         }
         // 账号禁用
-        if(user.getStatus() == 1){
-            throw new BusinessException(ErrorCode.LOGIN_ERROR,"账号已被禁用");
+        if (user.getStatus() == 1) {
+            throw new BusinessException(ErrorCode.LOGIN_ERROR, "账号已被禁用");
         }
+
+        // 登录成功清零，避免历史失败次数挤占后续额度
+        redisUtil.delete(failKey);
+
         String token = jwtUtil.generateToken(user.getId());
         UserLoginVO vo = new UserLoginVO();
         vo.setToken(token);
@@ -96,6 +131,33 @@ public class SysUserServiceImpl implements SysUserService {
         vo.setNickName(user.getNickName());
         vo.setUser(new UserSummaryVO(user.getId(), user.getUsername(), user.getNickName(), user.getUserPhoto()));
         return vo;
+    }
+
+    /**
+     * 记录一次登录失败。
+     *
+     * <p>INCR 与 EXPIRE 合并在一段 Lua 里执行：拆成两次调用的话，进程若在两者之间
+     * 崩溃或重启，key 会永不过期，用户被永久锁定且日志里查不出原因。
+     *
+     * <p>达到阈值时把 TTL 重置为完整锁定期，让 15 分钟从「第 N 次失败」开始算，
+     * 而不是从「第一次失败」开始算。
+     */
+    private void recordLoginFail(String failKey, String username) {
+        long count = redisUtil.incrementWithTtl(failKey, 1, LOGIN_LOCK_MINUTES * 60L);
+        if (count >= LOGIN_FAIL_LIMIT) {
+            redisUtil.expire(failKey, LOGIN_LOCK_MINUTES * 60L, TimeUnit.SECONDS);
+            log.warn("账号 {} 连续登录失败 {} 次，锁定 {} 分钟", username, count, LOGIN_LOCK_MINUTES);
+        }
+    }
+
+    private int parseCount(String raw) {
+        try {
+            return Integer.parseInt(raw);
+        } catch (NumberFormatException e) {
+            // 脏数据不应阻断登录，交给 TTL 自然淘汰
+            log.warn("登录失败计数格式异常：{}", raw);
+            return 0;
+        }
     }
 
     /** 获取当前登录用户信息 */

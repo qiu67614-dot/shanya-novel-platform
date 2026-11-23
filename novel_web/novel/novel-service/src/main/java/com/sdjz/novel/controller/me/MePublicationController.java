@@ -3,6 +3,9 @@ package com.sdjz.novel.controller.me;
 import com.sdjz.novel.common.context.UserContext;
 import com.sdjz.novel.common.exception.BusinessException;
 import com.sdjz.novel.common.exception.ErrorCode;
+import com.sdjz.novel.common.ratelimit.RateLimit;
+import com.sdjz.novel.common.ratelimit.RateLimitDimension;
+import com.sdjz.novel.common.ratelimit.RateLimitGroup;
 import com.sdjz.novel.common.response.RestResp;
 import com.sdjz.novel.pojo.dto.reader.SubmissionUpdateDTO;
 import com.sdjz.novel.pojo.dto.reader.WithdrawalDTO;
@@ -22,6 +25,8 @@ import java.util.List;
 public class MePublicationController {
     private final PublicationService service;
 
+    /** 重投：与首次导入同属重型操作，共用 HEAVY 额度。 */
+    @RateLimit(group = RateLimitGroup.HEAVY, dimension = RateLimitDimension.USER)
     @PostMapping(value = "/imports/{novelId}/resubmit", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public RestResp<PrivateNovelVO> resubmit(@PathVariable Long novelId,
             @Valid @ModelAttribute SubmissionUpdateDTO dto,

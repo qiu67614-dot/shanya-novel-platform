@@ -2,6 +2,9 @@ package com.sdjz.novel.controller.auth;
 
 import cn.hutool.captcha.CaptchaUtil;
 import cn.hutool.captcha.LineCaptcha;
+import com.sdjz.novel.common.ratelimit.RateLimit;
+import com.sdjz.novel.common.ratelimit.RateLimitDimension;
+import com.sdjz.novel.common.ratelimit.RateLimitGroup;
 import com.sdjz.novel.common.response.RestResp;
 import com.sdjz.novel.common.util.RedisUtil;
 import com.sdjz.novel.pojo.dto.user.UserLoginDTO;
@@ -40,6 +43,7 @@ public class FrontUserController {
     /**
      * 注册
      */
+    @RateLimit(group = RateLimitGroup.AUTH, dimension = RateLimitDimension.IP)
     @PostMapping("/register")
     public RestResp<UserLoginVO> register(@Valid @RequestBody UserRegisterDTO dto) {
         String name = dto.getUsername();
@@ -49,8 +53,12 @@ public class FrontUserController {
     }
 
     /**
-     * 登录
+     * 登录。
+     *
+     * <p>按 IP 限流（此时还没有 uid），配合 Service 层按用户名的失败计数：
+     * IP 这层挡「一台机器高频尝试」，用户名计数挡「针对某个账号的撞库」。
      */
+    @RateLimit(group = RateLimitGroup.AUTH, dimension = RateLimitDimension.IP)
     @PostMapping("/login")
     public RestResp<UserLoginVO> login(@Valid @RequestBody UserLoginDTO dto) {
         String name = dto.getUsername();
@@ -61,6 +69,7 @@ public class FrontUserController {
     /**
      * 发送验证码
      */
+    @RateLimit(group = RateLimitGroup.AUTH, dimension = RateLimitDimension.IP)
     @GetMapping("/captcha")
     public RestResp<CaptchaVO> getImgVerifyCode() throws IOException {
         log.info("开始生成验证码");

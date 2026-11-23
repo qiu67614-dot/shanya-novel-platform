@@ -3,6 +3,9 @@ package com.sdjz.novel.controller.me;
 import com.sdjz.novel.common.context.UserContext;
 import com.sdjz.novel.common.exception.BusinessException;
 import com.sdjz.novel.common.exception.ErrorCode;
+import com.sdjz.novel.common.ratelimit.RateLimit;
+import com.sdjz.novel.common.ratelimit.RateLimitDimension;
+import com.sdjz.novel.common.ratelimit.RateLimitGroup;
 import com.sdjz.novel.common.response.RestResp;
 import com.sdjz.novel.pojo.dto.reader.PrivateProgressDTO;
 import com.sdjz.novel.pojo.dto.reader.PrivateImportDTO;
@@ -23,6 +26,13 @@ import org.springframework.web.multipart.MultipartFile;
 public class PrivateNovelController {
     private final PrivateNovelService service;
 
+    /**
+     * TXT 导入：本项目最重的接口（20 MB 全堆解析 + 最多 5000 次插入）。
+     *
+     * <p>按用户 3 次/小时。注意这只挡「一个人反复导」，挡不住「100 个不同用户同时导」——
+     * 后者需要进程级并发闸门（Semaphore），属于单独一步改造，不在本层解决。
+     */
+    @RateLimit(group = RateLimitGroup.HEAVY, dimension = RateLimitDimension.USER)
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public RestResp<PrivateNovelVO> importTxt(@RequestParam(value = "file", required = false) MultipartFile file,
                                               @RequestParam(value = "cover", required = false) MultipartFile cover,

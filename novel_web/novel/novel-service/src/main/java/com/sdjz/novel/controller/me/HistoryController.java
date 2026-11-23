@@ -3,6 +3,9 @@ package com.sdjz.novel.controller.me;
 import com.sdjz.novel.common.context.UserContext;
 import com.sdjz.novel.common.exception.BusinessException;
 import com.sdjz.novel.common.exception.ErrorCode;
+import com.sdjz.novel.common.ratelimit.RateLimit;
+import com.sdjz.novel.common.ratelimit.RateLimitDimension;
+import com.sdjz.novel.common.ratelimit.RateLimitGroup;
 import com.sdjz.novel.common.response.RestResp;
 import com.sdjz.novel.pojo.dto.reader.ProgressUpdateDTO;
 import com.sdjz.novel.pojo.vo.reader.HistoryEntryVO;
@@ -32,6 +35,7 @@ public class HistoryController {
         return RestResp.ok(historyService.getHistory(requireUserId(), page, size));
     }
 
+    @RateLimit(group = RateLimitGroup.WRITE, dimension = RateLimitDimension.USER)
     @PutMapping("/progress")
     public RestResp<Void> updateProgress(
             @Valid @RequestBody ProgressUpdateDTO dto

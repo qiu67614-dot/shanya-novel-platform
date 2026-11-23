@@ -3,6 +3,9 @@ package com.sdjz.novel.controller.me;
 import com.sdjz.novel.common.context.UserContext;
 import com.sdjz.novel.common.exception.BusinessException;
 import com.sdjz.novel.common.exception.ErrorCode;
+import com.sdjz.novel.common.ratelimit.RateLimit;
+import com.sdjz.novel.common.ratelimit.RateLimitDimension;
+import com.sdjz.novel.common.ratelimit.RateLimitGroup;
 import com.sdjz.novel.common.response.RestResp;
 import com.sdjz.novel.pojo.dto.reader.CommentCreateDTO;
 import com.sdjz.novel.service.CommentService;
@@ -22,6 +25,7 @@ public class MeCommentController {
 
     private final CommentService commentService;
 
+    @RateLimit(group = RateLimitGroup.WRITE, dimension = RateLimitDimension.USER)
     @PostMapping("/books/{bookId}/comments")
     public RestResp<Void> createComment(
             @PathVariable Long bookId,

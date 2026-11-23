@@ -3,6 +3,9 @@ package com.sdjz.novel.controller.me;
 import com.sdjz.novel.common.context.UserContext;
 import com.sdjz.novel.common.exception.BusinessException;
 import com.sdjz.novel.common.exception.ErrorCode;
+import com.sdjz.novel.common.ratelimit.RateLimit;
+import com.sdjz.novel.common.ratelimit.RateLimitDimension;
+import com.sdjz.novel.common.ratelimit.RateLimitGroup;
 import com.sdjz.novel.common.response.RestResp;
 import com.sdjz.novel.pojo.vo.reader.FollowingBookVO;
 import com.sdjz.novel.service.FollowingService;
@@ -28,11 +31,13 @@ public class FollowingController {
         return RestResp.ok(followingService.list(requireUserId()));
     }
 
+    @RateLimit(group = RateLimitGroup.WRITE, dimension = RateLimitDimension.USER)
     @PutMapping("/{bookId}")
     public RestResp<FollowingBookVO> follow(@PathVariable Long bookId) {
         return RestResp.ok(followingService.follow(requireUserId(), bookId));
     }
 
+    @RateLimit(group = RateLimitGroup.WRITE, dimension = RateLimitDimension.USER)
     @DeleteMapping("/{bookId}")
     public RestResp<Void> unfollow(@PathVariable Long bookId) {
         followingService.unfollow(requireUserId(), bookId);

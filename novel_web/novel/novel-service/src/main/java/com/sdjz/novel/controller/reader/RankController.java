@@ -1,5 +1,8 @@
 package com.sdjz.novel.controller.reader;
 
+import com.sdjz.novel.common.ratelimit.RateLimit;
+import com.sdjz.novel.common.ratelimit.RateLimitDimension;
+import com.sdjz.novel.common.ratelimit.RateLimitGroup;
 import com.sdjz.novel.common.response.RestResp;
 import com.sdjz.novel.pojo.vo.reader.BookSummaryVO;
 import com.sdjz.novel.service.BookService;
@@ -18,6 +21,7 @@ public class RankController {
 
     private final BookService bookService;
 
+    @RateLimit(group = RateLimitGroup.READ, dimension = RateLimitDimension.USER)
     @GetMapping("/{type}")
     public RestResp<List<BookSummaryVO>> getRank(@PathVariable String type) {
         return RestResp.ok(bookService.getRankBooks(type));

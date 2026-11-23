@@ -54,3 +54,69 @@ captcha:
 reader:
   cache:
     enabled: true
+
+# ============================================================================
+# 接口级限流（L3/L4）
+# ----------------------------------------------------------------------------
+# 与 Nginx（L0）的分工：Nginx 只能按 IP，且一个阈值被整个 NAT 出口共用；
+# 这里能拿到 uid，做到「同一出口下每人独立计数」。所以本层阈值按**单人**设，
+# 不要照搬 Nginx 的「按 50 人」口径。
+#
+# 改阈值不需要重新打包；enabled=false 可一键全关（压测对比、灰度排障用）。
+# ============================================================================
+rate-limit:
+  enabled: true
+
+  # 全局闸门（RateLimitFilter）：按 IP 的兜底粗筛，只拦「Nginx 被绕过 / 单机无差别刷」。
+  # 必须比 Nginx 宽：Nginx 的 api 层是 40r/s（约 2400/min）+ burst 80，
+  # 所以这里取 3000/min（50/s）。如果设得比 Nginx 小，请求会先被 Java 拒掉——
+  # 那样既浪费了 Tomcat 线程，也让「最便宜的一层」失去意义。
+  gate:
+    enabled: true
+    permits: 3000
+    window: 60
+
+  groups:
+    # permits       = 登录用户（按 uid 独立计数）的额度
+    # guest-permits = 游客（降级为按 IP 计数）的额度，一个出口多人共用，
+    #                 所以必须是 permits 的若干倍，否则会把整个宿舍/实验室卡死
+    read:
+      permits: 60
+      guest-permits: 600
+      window: 60
+      fallback: OPEN
+    # 章节正文：单请求响应最大，但缓存命中率高，单独一档便于观测
+    chapter:
+      permits: 120
+      guest-permits: 1200
+      window: 60
+      fallback: OPEN
+    # 搜索：条件查询叠加 count，代价明显高于普通读
+    search:
+      permits: 30
+      guest-permits: 300
+      window: 60
+      fallback: OPEN
+    # 认证：本身就是按 IP 计数（登录时还没有 uid），两个值保持一致
+    auth:
+      permits: 20
+      guest-permits: 20
+      window: 60
+      fallback: OPEN
+    # 一般写操作：评论、书架、历史、关注、阅读进度。
+    # 60/min 而不是 30：阅读进度是客户端定时上报的（约每 10 秒一次），
+    # 阈值留够余量避免正常阅读被误伤
+    write:
+      permits: 60
+      window: 60
+      fallback: CLOSE
+    # 重型操作：TXT 导入、投稿、审核。1 小时 3 次
+    heavy:
+      permits: 3
+      window: 3600
+      fallback: CLOSE
+    # 管理端：管理员少但权限大，单独一档便于审计
+    admin:
+      permits: 120
+      window: 60
+      fallback: OPEN
